@@ -8,7 +8,8 @@
 ╚═╝ ╚═════╝╚═╝╚═╝ ╚═╝ ╚═══╝ ╚═╝ ╚═╝ ╚═╝
 SCRIPT HIZOLON PRIVAT SS+
 ─────────────────────────
-• Невидимый персонаж
+• WALL HACK (no-collision, держится на земле)
+• NULL (пустая кнопка)
 • Позиционирование строго позади цели
 • Разворот ЛИЦОМ к цели
 • Корректная пинг-компенсация (без перелёта)
@@ -34,30 +35,37 @@ local CONFIG = {
 -- Позиционирование
 BEHIND_STUDS = 3,
 HEIGHT_OFFSET = 0,
--- Невидимость
+-- Невидимость (функции убраны, оставлены поля для совместимости)
 INVISIBLE = false,
 EMERGENCY_HP = 30,
 SAFE_ZONE = false,
 AUTO_RESET = false,
-RESET_THRESHOLD = 0.30, -- fraction of MaxHealth
+RESET_THRESHOLD = 0.30,
 SAFE_DEPTH = 80,
 SAFE_HEIGHT = 130,
--- Пинг-компенсация (умеренная, без «перелёта»)
+-- Пинг-компенсация
 PING_COMPENSATE = true,
 PREDICTION_MULT = 1.0,
 PING_SAFETY = 1.3,
--- Ограничения (внутренние)
+-- Ограничения
 MAX_LEAD_TIME = 0.12,
 SMOOTH_FACTOR = 0.15,
+-- Wall Hack
+WALLHACK_ENABLED = false,
+-- Точка SAVE ZONA
+SAFE_TELEPORT_CFRAME = CFrame.new(
+-216.581772, -10000.0029, -145.716171,
+0.852498353, -1.00300547e-07, 0.522729933,
+6.29894217e-08, 1, 8.91515128e-08
+),
 }
 -- ============================================================
--- GUI SETUP (стиль HIZOLON) — размер ×0.7
+-- GUI SETUP — размер ×0.7
 -- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ScriptHizolonPrivatSSPlus"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
--- Главное окно (300×380 → 210×266)
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 210, 0, 286)
 MainFrame.Position = UDim2.new(0.5, -105, 0.5, -143)
@@ -70,7 +78,6 @@ local MainFrameStroke = Instance.new("UIStroke")
 MainFrameStroke.Color = Color3.fromRGB(255, 80, 80)
 MainFrameStroke.Thickness = 1.2
 MainFrameStroke.Parent = MainFrame
--- Заголовок (30 → 21)
 local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 21)
 TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -89,7 +96,6 @@ Title.TextSize = 11
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Position = UDim2.new(0, 7, 0, 0)
 Title.Parent = TitleBar
--- Кнопка закрытия (30×30 → 21×21)
 local CloseButton = Instance.new("TextButton")
 CloseButton.Position = UDim2.new(1, -21, 0, 0)
 CloseButton.Size = UDim2.new(0, 21, 0, 21)
@@ -103,7 +109,6 @@ CloseButton.Parent = TitleBar
 local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 4)
 CloseCorner.Parent = CloseButton
--- Collapse to title bar without stopping active functions.
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "Minimize"
 MinimizeButton.Position = UDim2.new(1, -42, 0, 0)
@@ -120,16 +125,15 @@ MinCorner.CornerRadius = UDim.new(0, 4)
 MinCorner.Parent = MinimizeButton
 local minimized = false
 MinimizeButton.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 286)
-    MinimizeButton.Text = minimized and "+" or "-"
-    for _, child in ipairs(MainFrame:GetChildren()) do
-        if child:IsA("GuiObject") and child ~= TitleBar then
-            child.Visible = not minimized
-        end
-    end
+minimized = not minimized
+MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 286)
+MinimizeButton.Text = minimized and "+" or "-"
+for _, child in ipairs(MainFrame:GetChildren()) do
+if child:IsA("GuiObject") and child ~= TitleBar then
+child.Visible = not minimized
+end
+end
 end)
--- Статус
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Position = UDim2.new(0, 7, 0, 28)
 StatusLabel.Size = UDim2.new(1, -14, 0, 18)
@@ -140,7 +144,6 @@ StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatusLabel.Parent = MainFrame
--- Рамка выбора цели (200 → 140)
 local SelectionFrame = Instance.new("Frame")
 SelectionFrame.Position = UDim2.new(0, 7, 0, 49)
 SelectionFrame.Size = UDim2.new(1, -14, 0, 140)
@@ -159,7 +162,6 @@ PlayerScrollFrame.ScrollBarThickness = 4
 PlayerScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 80, 80)
 PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 PlayerScrollFrame.Parent = SelectionFrame
--- Кнопка START (40 → 28)
 local StartButton = Instance.new("TextButton")
 StartButton.Position = UDim2.new(0, 7, 0, 196)
 StartButton.Size = UDim2.new(0.5, -10, 0, 28)
@@ -173,7 +175,6 @@ StartButton.Parent = MainFrame
 local StartCorner = Instance.new("UICorner")
 StartCorner.CornerRadius = UDim.new(0, 4)
 StartCorner.Parent = StartButton
--- Кнопка STOP
 local StopButton = Instance.new("TextButton")
 StopButton.Position = UDim2.new(0.5, 3, 0, 196)
 StopButton.Size = UDim2.new(0.5, -10, 0, 28)
@@ -187,34 +188,38 @@ StopButton.Parent = MainFrame
 local StopCorner = Instance.new("UICorner")
 StopCorner.CornerRadius = UDim.new(0, 4)
 StopCorner.Parent = StopButton
--- Two independent controls
 local function makeToggle(name, x, width)
-    local button = Instance.new("TextButton")
-    button.Name = name:gsub(" ", "")
-    button.Position = UDim2.new(0, x, 0, 231)
-    button.Size = UDim2.new(0, width, 0, 21)
-    button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    button.BorderSizePixel = 0
-    button.TextColor3 = Color3.fromRGB(255, 80, 80)
-    button.Font = Enum.Font.SourceSansBold
-    button.TextSize = 10
-    button.Parent = MainFrame
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = button
-    return button
+local button = Instance.new("TextButton")
+button.Name = name:gsub(" ", "")
+button.Position = UDim2.new(0, x, 0, 231)
+button.Size = UDim2.new(0, width, 0, 21)
+button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+button.BorderSizePixel = 0
+button.TextColor3 = Color3.fromRGB(255, 80, 80)
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 10
+button.Parent = MainFrame
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 4)
+corner.Parent = button
+return button
 end
 local SafeToggle = makeToggle("SAVE ZONA", 7, 94)
 local ResetToggle = makeToggle("AUTO RESET", 108, 95)
-local InvisToggle = makeToggle("INVIS", 7, 196)
-InvisToggle.Position = UDim2.new(0, 7, 0, 258)
+-- Две кнопки вместо INVIS: WALL HACK (слева) и NULL (справа)
+local WallHackToggle = makeToggle("WALL HACK", 7, 94)
+WallHackToggle.Position = UDim2.new(0, 7, 0, 258)
+local NullToggle = makeToggle("NULL", 108, 95)
+NullToggle.Position = UDim2.new(0, 108, 0, 258)
 local function paintToggle(button, title, enabled)
-    button.Text = title .. (enabled and ": ON" or ": OFF")
-    button.TextColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 80, 80)
+button.Text = title .. (enabled and ": ON" or ": OFF")
+button.TextColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 80,
+80)
 end
 paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
 paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
-paintToggle(InvisToggle, "INVIS", CONFIG.INVISIBLE)
+paintToggle(WallHackToggle, "WALL HACK", CONFIG.WALLHACK_ENABLED)
+paintToggle(NullToggle, "NULL", false)
 -- ============================================================
 -- VARIABLES
 -- ============================================================
@@ -222,7 +227,6 @@ local SelectedTarget = nil
 local PlayerButtons = {}
 local BackstabActive = false
 local PositionConnection = nil
-local InvisConnection = nil
 local HealthConnection = nil
 local SafePlatform = nil
 local SafeReturn = nil
@@ -234,6 +238,8 @@ local CleanupConnections = {}
 local DeathConnection = nil
 local ResetInProgress = false
 local CurrentTrackedHumanoid = nil
+local WallHackConnection = nil
+local OriginalCollisions = setmetatable({}, {__mode = "k"})
 -- ============================================================
 -- UTILITIES
 -- ============================================================
@@ -253,143 +259,136 @@ if not plr or not plr.Character then return nil end
 return plr.Character:FindFirstChild("HumanoidRootPart")
 end
 -- ============================================================
--- INVISIBILITY
+-- WALL HACK (no-collision, держится на земле)
 -- ============================================================
-local Invisibility = {}
-local OriginalModifiers = setmetatable({}, {__mode = "k"})
-local DescendantConnection = nil
-local function hideDescendant(obj)
-    if obj:IsA("BasePart") then
-        if OriginalModifiers[obj] == nil then
-            OriginalModifiers[obj] = obj.LocalTransparencyModifier
-        end
-        obj.LocalTransparencyModifier = 1
-    end
+local WallHack = {}
+function WallHack.apply()
+local char = Player.Character
+if not char then return end
+for _, obj in ipairs(char:GetDescendants()) do
+if obj:IsA("BasePart") then
+if OriginalCollisions[obj] == nil then
+OriginalCollisions[obj] = obj.CanCollide
 end
-function Invisibility.apply()
-    local char = Player.Character
-    if not char then return end
-    for _, obj in ipairs(char:GetDescendants()) do
-        hideDescendant(obj)
-    end
-    if DescendantConnection then DescendantConnection:Disconnect() end
-    DescendantConnection = char.DescendantAdded:Connect(function(obj)
-        if CONFIG.INVISIBLE then
-            hideDescendant(obj)
-        end
-    end)
+obj.CanCollide = false
 end
-function Invisibility.remove()
-    if DescendantConnection then DescendantConnection:Disconnect() DescendantConnection = nil end
-    for obj, original in pairs(OriginalModifiers) do
-        if obj and obj.Parent then
-            pcall(function() obj.LocalTransparencyModifier = original end)
-        end
-        OriginalModifiers[obj] = nil
-    end
 end
-
--- A client-side platform and LocalTransparencyModifier are local effects.
--- Other players will not necessarily see the same character/platform state.
+if WallHackConnection then WallHackConnection:Disconnect() end
+WallHackConnection = char.DescendantAdded:Connect(function(obj)
+if CONFIG.WALLHACK_ENABLED and obj:IsA("BasePart") then
+if OriginalCollisions[obj] == nil then
+OriginalCollisions[obj] = obj.CanCollide
+end
+obj.CanCollide = false
+end
+end)
+end
+function WallHack.remove()
+if WallHackConnection then WallHackConnection:Disconnect(); WallHackConnection = nil
+end
+for obj, original in pairs(OriginalCollisions) do
+if obj and obj.Parent then
+pcall(function() obj.CanCollide = original end)
+end
+OriginalCollisions[obj] = nil
+end
+end
+-- ============================================================
+-- SAFE ZONE (телепорт строго на заданные координаты)
+-- ============================================================
 local function removeSafeZone(restorePosition)
-    if restorePosition and SafeReturn then
-        local hrp = getHRP(Player)
-        if hrp then
-            hrp.CFrame = SafeReturn
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
-    end
-    if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
-    SafeReturn = nil
-    SafeMode = nil
+if restorePosition and SafeReturn then
+local hrp = getHRP(Player)
+if hrp then
+hrp.CFrame = SafeReturn
+hrp.AssemblyLinearVelocity = Vector3.zero
+hrp.AssemblyAngularVelocity = Vector3.zero
+end
+end
+if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
+SafeReturn = nil
+SafeMode = nil
 end
 local function createSafeZone(mode)
-    local hrp = getHRP(Player)
-    if not hrp then return false end
-    if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
-    SafeReturn = SafeReturn or hrp.CFrame
-    SafeMode = mode or "above"
-    local y = SafeMode == "below" and -CONFIG.SAFE_DEPTH or CONFIG.SAFE_HEIGHT
-    local destination = Vector3.new(hrp.Position.X, y, hrp.Position.Z)
-    local platform = Instance.new("Part")
-    platform.Name = "HizolonLocalSafeZone"
-    platform.Size = Vector3.new(28, 2, 28)
-    platform.Anchored = true
-    platform.CanCollide = true
-    platform.CanTouch = false
-    platform.CanQuery = false
-    platform.CastShadow = false
-    platform.Material = Enum.Material.SmoothPlastic
-    platform.Color = Color3.fromRGB(0, 0, 0)
-    platform.Transparency = SafeMode == "below" and 1 or 0.65
-    platform.CFrame = CFrame.new(destination)
-    platform.Parent = workspace
-    SafePlatform = platform
-    hrp.CFrame = CFrame.new(destination + Vector3.new(0, 5, 0))
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    return true
+local hrp = getHRP(Player)
+if not hrp then return false end
+if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
+SafeReturn = SafeReturn or hrp.CFrame
+SafeMode = mode or "above"
+local targetCF = CONFIG.SAFE_TELEPORT_CFRAME
+local destination = targetCF.Position
+local platform = Instance.new("Part")
+platform.Name = "HizolonLocalSafeZone"
+platform.Size = Vector3.new(28, 2, 28)
+platform.Anchored = true
+platform.CanCollide = true
+platform.CanTouch = false
+platform.CanQuery = false
+platform.CastShadow = false
+platform.Material = Enum.Material.SmoothPlastic
+platform.Color = Color3.fromRGB(0, 0, 0)
+platform.Transparency = SafeMode == "below" and 1 or 0.65
+platform.CFrame = CFrame.new(destination - Vector3.new(0, 5, 0))
+platform.Parent = workspace
+SafePlatform = platform
+hrp.CFrame = targetCF
+hrp.AssemblyLinearVelocity = Vector3.zero
+hrp.AssemblyAngularVelocity = Vector3.zero
+return true
 end
-
--- Emergency mode: disable tracking, move below the map, and reset.
--- A client cannot guarantee that death is invisible to other players.
-local StopBackstab -- forward declaration; initialized below
--- Preserve feature toggles across death/respawn. Roblox server authority
--- determines whether movement, death and appearance replicate to others.
+-- ============================================================
+-- EMERGENCY / HEALTH MONITOR
+-- ============================================================
+local StopBackstab -- forward declaration
 local function emergencyRetreat()
-    if ResetInProgress then return end
-    local char = Player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp or hum.Health <= 0 then return end
-    ResetInProgress = true
-    local y = math.min(-CONFIG.SAFE_DEPTH, workspace.FallenPartsDestroyHeight - 15)
-    -- Suspend movement while dying without changing the user's settings.
-    hrp.CFrame = CFrame.new(hrp.Position.X, y, hrp.Position.Z)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    StatusLabel.Text = "AUTO RESET: LOW HP"
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 180, 40)
-    hum.Health = 0
+if ResetInProgress then return end
+local char = Player.Character
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if not hum or not hrp or hum.Health <= 0 then return end
+ResetInProgress = true
+local y = math.min(-CONFIG.SAFE_DEPTH, workspace.FallenPartsDestroyHeight - 15)
+hrp.CFrame = CFrame.new(hrp.Position.X, y, hrp.Position.Z)
+hrp.AssemblyLinearVelocity = Vector3.zero
+hrp.AssemblyAngularVelocity = Vector3.zero
+StatusLabel.Text = "AUTO RESET: LOW HP"
+StatusLabel.TextColor3 = Color3.fromRGB(255, 180, 40)
+hum.Health = 0
 end
 local function monitorHealth(character)
-    if HealthConnection then HealthConnection:Disconnect(); HealthConnection = nil end
-    if DeathConnection then DeathConnection:Disconnect(); DeathConnection = nil end
-    ResetInProgress = false
-    local hum = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 10)
-    if not hum then return end
-    CurrentTrackedHumanoid = hum
-    local function checkHealth(health)
-        if CONFIG.AUTO_RESET and not ResetInProgress and health > 0
-            and hum.MaxHealth > 0 and health / hum.MaxHealth <= CONFIG.RESET_THRESHOLD then
-            emergencyRetreat()
-        end
-    end
-    HealthConnection = hum.HealthChanged:Connect(checkHealth)
-    DeathConnection = hum.Died:Connect(function()
-        -- Local-only corpse concealment. Other clients may still see it.
-        if CONFIG.AUTO_RESET then
-            for _, obj in ipairs(character:GetDescendants()) do
-                if obj:IsA("BasePart") then obj.LocalTransparencyModifier = 1 end
-            end
-        end
-    end)
-    checkHealth(hum.Health)
+if HealthConnection then HealthConnection:Disconnect(); HealthConnection = nil end
+if DeathConnection then DeathConnection:Disconnect(); DeathConnection = nil end
+ResetInProgress = false
+local hum = character:FindFirstChildOfClass("Humanoid") or
+character:WaitForChild("Humanoid", 10)
+if not hum then return end
+CurrentTrackedHumanoid = hum
+local function checkHealth(health)
+if CONFIG.AUTO_RESET and not ResetInProgress and health > 0
+and hum.MaxHealth > 0 and health / hum.MaxHealth <=
+CONFIG.RESET_THRESHOLD then
+emergencyRetreat()
+end
+end
+HealthConnection = hum.HealthChanged:Connect(checkHealth)
+DeathConnection = hum.Died:Connect(function()
+if CONFIG.AUTO_RESET then
+for _, obj in ipairs(character:GetDescendants()) do
+if obj:IsA("BasePart") then obj.LocalTransparencyModifier = 1 end
+end
+end
+end)
+checkHealth(hum.Health)
 end
 -- ============================================================
 -- POSITIONER v2
--- Чёткое позиционирование позади + разворот ЛИЦОМ к цели
--- + корректная пинг-компенсация (без "перелёта")
 -- ============================================================
 local Positioner = {}
 function Positioner.getBehindCFrame(targetHRP)
 if not targetHRP then return nil end
--- === 1. БАЗОВЫЕ ДАННЫЕ ЦЕЛИ ===
 local targetCF = targetHRP.CFrame
 local targetPos = targetHRP.Position
 local targetLook = targetCF.LookVector
--- === 2. КОРРЕКТНАЯ ПИНГ-КОМПЕНСАЦИЯ ===
 local pingRaw = getPing() / 1000
 local leadTime = math.min(pingRaw * CONFIG.PING_SAFETY,
 CONFIG.MAX_LEAD_TIME)
@@ -397,10 +396,8 @@ local predictedPos = targetPos
 local predictedLook = targetLook
 if CONFIG.PING_COMPENSATE then
 local vel = targetHRP.AssemblyLinearVelocity
--- Умеренный множитель предсказания (clamp 0.5–1.5)
 local predMult = math.clamp(CONFIG.PREDICTION_MULT, 0.5, 1.5)
 predictedPos = targetPos + vel * leadTime * predMult
--- Предсказание поворота — только если цель реально вращается
 local angVel = targetHRP.AssemblyAngularVelocity
 if angVel.Magnitude > 0.1 then
 local angle = angVel.Magnitude * leadTime * predMult
@@ -409,13 +406,10 @@ local axis = angVel.Unit
 local rotDelta = CFrame.fromAxisAngle(axis, angle)
 predictedLook = (rotDelta * targetLook).Unit
 end
--- Вертикальная компенсация (прыжок / падение)
 predictedPos = predictedPos + Vector3.new(0, vel.Y * leadTime * 0.5, 0)
 end
--- === 3. ЧЁТКАЯ ПОЗИЦИЯ ПОЗАДИ ===
 local behindPos = predictedPos - predictedLook * CONFIG.BEHIND_STUDS
 behindPos = behindPos + Vector3.new(0, CONFIG.HEIGHT_OFFSET, 0)
--- === 4. РАЗВОРОТ ЛИЦОМ К РЕАЛЬНОЙ ЦЕЛИ ===
 local facePos = Vector3.new(predictedPos.X, behindPos.Y, predictedPos.Z)
 if (facePos - behindPos).Magnitude < 0.01 then return CFrame.new(behindPos) end
 local faceCFrame = CFrame.lookAt(behindPos, facePos)
@@ -562,8 +556,8 @@ end
 BackstabActive = true
 local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
 if myHum then
-    PreviousAutoRotate = myHum.AutoRotate
-    myHum.AutoRotate = false -- rotate avatar independently of the camera
+PreviousAutoRotate = myHum.AutoRotate
+myHum.AutoRotate = false
 end
 UpdateStatus()
 Message("Script Hizolon Privat SS+", "Backstabbing " .. SelectedTarget.Name, 2)
@@ -572,21 +566,18 @@ removeSafeZone(false)
 CONFIG.SAFE_ZONE = false
 paintToggle(SafeToggle, "SAVE ZONA", false)
 end
-if CONFIG.INVISIBLE then Invisibility.apply() end
-Positioner.teleport() -- immediate first move; no first-frame delay
+Positioner.teleport()
 PositionConnection = RunService.PreSimulation:Connect(function()
 pcall(Positioner.teleport)
 end)
--- Invisibility is event-driven; no per-frame descendant scans.
 end
 StopBackstab = function()
 if not BackstabActive then return end
 BackstabActive = false
 if PositionConnection then PositionConnection:Disconnect() PositionConnection = nil end
-if InvisConnection then InvisConnection:Disconnect() InvisConnection = nil end
-if not CONFIG.INVISIBLE then Invisibility.remove() end
 local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate end
+if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate
+end
 PreviousAutoRotate = nil
 UpdateStatus()
 Message("Script Hizolon Privat SS+", "Backstab stopped", 2)
@@ -597,35 +588,43 @@ end
 StartButton.MouseButton1Click:Connect(StartBackstab)
 StopButton.MouseButton1Click:Connect(StopBackstab)
 SafeToggle.MouseButton1Click:Connect(function()
-    CONFIG.SAFE_ZONE = not CONFIG.SAFE_ZONE
-    if CONFIG.SAFE_ZONE then
-        if BackstabActive then StopBackstab() end
-        createSafeZone("above")
-    else
-        removeSafeZone(true)
-    end
-    paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
+CONFIG.SAFE_ZONE = not CONFIG.SAFE_ZONE
+if CONFIG.SAFE_ZONE then
+if BackstabActive then StopBackstab() end
+createSafeZone("above")
+else
+removeSafeZone(true)
+end
+paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
 end)
-InvisToggle.MouseButton1Click:Connect(function()
-    CONFIG.INVISIBLE = not CONFIG.INVISIBLE
-    if CONFIG.INVISIBLE then Invisibility.apply() else Invisibility.remove() end
-    paintToggle(InvisToggle, "INVIS", CONFIG.INVISIBLE)
+-- WALL HACK toggle
+WallHackToggle.MouseButton1Click:Connect(function()
+CONFIG.WALLHACK_ENABLED = not CONFIG.WALLHACK_ENABLED
+if CONFIG.WALLHACK_ENABLED then WallHack.apply() else WallHack.remove() end
+paintToggle(WallHackToggle, "WALL HACK", CONFIG.WALLHACK_ENABLED)
+end)
+-- NULL toggle (пустая заглушка)
+NullToggle.MouseButton1Click:Connect(function()
+-- TODO: функция будет добавлена позже
+paintToggle(NullToggle, "NULL", false)
 end)
 ResetToggle.MouseButton1Click:Connect(function()
-    CONFIG.AUTO_RESET = not CONFIG.AUTO_RESET
-    paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
-    if CONFIG.AUTO_RESET then
-        local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Health > 0 and hum.MaxHealth > 0 and hum.Health / hum.MaxHealth < CONFIG.RESET_THRESHOLD then emergencyRetreat() end
-    end
+CONFIG.AUTO_RESET = not CONFIG.AUTO_RESET
+paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
+if CONFIG.AUTO_RESET then
+local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+if hum and hum.Health > 0 and hum.MaxHealth > 0 and hum.Health / hum.MaxHealth <
+CONFIG.RESET_THRESHOLD then emergencyRetreat() end
+end
 end)
 CloseButton.MouseButton1Click:Connect(function()
 StopBackstab()
 removeSafeZone(true)
+WallHack.remove()
 if HealthConnection then HealthConnection:Disconnect() end
 if DeathConnection then DeathConnection:Disconnect() end
 if CharacterConnection then CharacterConnection:Disconnect() end
-if DescendantConnection then DescendantConnection:Disconnect() end
+if WallHackConnection then WallHackConnection:Disconnect() end
 for _, conn in ipairs(CleanupConnections) do conn:Disconnect() end
 ScreenGui:Destroy()
 end)
@@ -648,19 +647,18 @@ end))
 -- RESPAWN HANDLER
 -- ============================================================
 CharacterConnection = Player.CharacterAdded:Connect(function(character)
-    Invisibility.remove()
-    PreviousAutoRotate = nil
-    if SafePlatform then removeSafeZone(false) end
-    monitorHealth(character)
-    if BackstabActive then
-        local hum = character:WaitForChild("Humanoid", 10)
-        if hum then PreviousAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
-    end
-    if CONFIG.INVISIBLE then
-        task.defer(function()
-            if Player.Character == character then Invisibility.apply() end
-        end)
-    end
+PreviousAutoRotate = nil
+if SafePlatform then removeSafeZone(false) end
+monitorHealth(character)
+if BackstabActive then
+local hum = character:WaitForChild("Humanoid", 10)
+if hum then PreviousAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
+end
+if CONFIG.WALLHACK_ENABLED then
+task.defer(function()
+if Player.Character == character then WallHack.apply() end
+end)
+end
 end)
 if Player.Character then task.defer(monitorHealth, Player.Character) end
 -- ============================================================
