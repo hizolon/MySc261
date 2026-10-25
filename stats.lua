@@ -1,53 +1,71 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
-local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
-local CONFIG = {
-    PLATE_WIDTH = 60,
-    PLATE_HEIGHT = 24,
-    PLATE_SPACING = 4,
-    PLATE_X = 10,
-    PLATE_Y = 10,
-    BG_COLOR = Color3.fromRGB(0, 0, 0),
-    BG_TRANSPARENCY = 0.5,
-    TEXT_COLOR = Color3.fromRGB(255, 255, 255),
-    TEXT_SIZE = 12,
-    FONT = Enum.Font.SourceSansBold,
-    CORNER_RADIUS = UDim.new(0, 6),
-}
+print("[StatsGUI] start")
 
-local function getMaxPlayers()
-    local ok, max = pcall(function() return Players.MaxPlayers end)
-    if ok and type(max) == "number" and max > 0 then
-        return max
-    end
-    local ok2, stat = pcall(function()
-        return Stats.Network.ServerStatsItem["Max Players"]:GetValue()
-    end)
-    if ok2 and tonumber(stat) then return tonumber(stat) end
-    return 0
+if not LocalPlayer then
+    print("[StatsGUI] ERROR: LocalPlayer is nil")
+    return
 end
 
-local function getRegionShort(ping)
-    if ping < 40 then return "LOCAL" end
-    if ping < 80 then return "EU" end
-    if ping < 140 then return "US" end
-    if ping < 220 then return "ASIA" end
-    return "FAR"
+local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+if not playerGui then
+    playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+end
+if not playerGui then
+    print("[StatsGUI] ERROR: PlayerGui not found")
+    return
 end
 
-local function getPing()
-    local ok, ping = pcall(function()
-        return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-    end)
-    return ok and tonumber(ping) or 0
+local old = playerGui:FindFirstChild("ServerStatsGUI")
+if old then old:Destroy() end
+
+local W, H, SP, X, Y = 60, 24, 4, 10, 10
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ServerStatsGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 999
+ScreenGui.Parent = playerGui
+
+print("[StatsGUI] ScreenGui created")
+
+local function makePlate(i)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.fromOffset(W, H)
+    f.Position = UDim2.fromOffset(X, Y + (i - 1) * (H + SP))
+    f.BackgroundColor3 = Color3.new(0, 0, 0)
+    f.BackgroundTransparency = 0.5
+    f.BorderSizePixel = 0
+    f.Parent = ScreenGui
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = f
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.fromScale(1, 1)
+    l.BackgroundTransparency = 1
+    l.Text = "..."
+    l.TextColor3 = Color3.new(1, 1, 1)
+    l.TextSize = 12
+    l.Font = Enum.Font.SourceSansBold
+    l.TextXAlignment = Enum.TextXAlignment.Center
+    l.TextYAlignment = Enum.TextYAlignment.Center
+    l.Parent = f
+    return l
 end
 
-local fpsValue = 0
-local fpsFrames = 0
-local fpsLast = tick()
+local pingL = makePlate(1)
+local fpsL = makePlate(2)
+local timeL = makePlate(3)
+local plrsL = makePlate(4)
+
+print("[StatsGUI] plates created")
+
+local startTime = tick()
+local fpsFrames, fpsLast, fpsValue = 0, tick(), 0
+local accum = 0
 
 RunService.RenderStepped:Connect(function()
     fpsFrames = fpsFrames + 1
@@ -59,86 +77,33 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-local startTime = tick()
-
-local function formatTime(seconds)
-    seconds = math.floor(seconds)
-    local h = math.floor(seconds / 3600)
-    local m = math.floor((seconds % 3600) / 60)
-    local s = seconds % 60
-    return string.format("%d:%02d:%02d", h, m, s)
-end
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ServerStatsGUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = CoreGui
-
-local function makePlate(index)
-    local frame = Instance.new("Frame")
-    frame.Name = "StatPlate_" .. index
-    frame.Size = UDim2.fromOffset(CONFIG.PLATE_WIDTH, CONFIG.PLATE_HEIGHT)
-    frame.Position = UDim2.fromOffset(
-        CONFIG.PLATE_X,
-        CONFIG.PLATE_Y + (index - 1) * (CONFIG.PLATE_HEIGHT + CONFIG.PLATE_SPACING)
-    )
-    frame.BackgroundColor3 = CONFIG.BG_COLOR
-    frame.BackgroundTransparency = CONFIG.BG_TRANSPARENCY
-    frame.BorderSizePixel = 0
-    frame.Parent = ScreenGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = CONFIG.CORNER_RADIUS
-    corner.Parent = frame
-
-    local label = Instance.new("TextLabel")
-    label.Name = "Text"
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = ""
-    label.TextColor3 = CONFIG.TEXT_COLOR
-    label.TextSize = CONFIG.TEXT_SIZE
-    label.Font = CONFIG.FONT
-    label.TextXAlignment = Enum.TextXAlignment.Center
-    label.TextYAlignment = Enum.TextYAlignment.Center
-    label.Parent = frame
-
-    return frame, label
-end
-
-local pingPlate, pingLabel = makePlate(1)
-local fpsPlate, fpsLabel = makePlate(2)
-local timerPlate, timerLabel = makePlate(3)
-local playersPlate, playersLabel = makePlate(4)
-
-local updateAccum = 0
-
 RunService.Heartbeat:Connect(function(dt)
-    updateAccum = updateAccum + dt
-    timerLabel.Text = formatTime(tick() - startTime)
+    accum = accum + dt
+    local elapsed = math.floor(tick() - startTime)
+    local h = math.floor(elapsed / 3600)
+    local m = math.floor((elapsed % 3600) / 60)
+    local s = elapsed % 60
+    timeL.Text = string.format("%d:%02d:%02d", h, m, s)
 
-    if updateAccum >= 0.25 then
-        updateAccum = 0
+    if accum >= 0.25 then
+        accum = 0
 
-        local ping = getPing()
-        local region = getRegionShort(ping)
-        pingLabel.Text = string.format("%d ms (%s)", math.floor(ping + 0.5), region)
+        local ping = 0
+        local ok, val = pcall(function()
+            return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+        end)
+        if ok and tonumber(val) then ping = tonumber(val) end
+        local region = ping < 40 and "LOCAL" or ping < 80 and "EU" or ping < 140 and "US" or ping < 220 and "ASIA" or "FAR"
+        pingL.Text = string.format("%d ms (%s)", math.floor(ping + 0.5), region)
 
-        fpsLabel.Text = string.format("%d FPS", fpsValue)
+        fpsL.Text = string.format("%d FPS", fpsValue)
 
-        local current = #Players:GetPlayers()
-        local maxP = getMaxPlayers()
-        if maxP > 0 then
-            playersLabel.Text = string.format("%d/%d plrs", current, maxP)
-        else
-            playersLabel.Text = string.format("%d plrs", current)
-        end
+        local cur = #Players:GetPlayers()
+        local max = 0
+        local okMax, mv = pcall(function() return Players.MaxPlayers end)
+        if okMax and type(mv) == "number" and mv > 0 then max = mv end
+        plrsL.Text = max > 0 and string.format("%d/%d plrs", cur, max) or string.format("%d plrs", cur)
     end
 end)
 
-LocalPlayer.AncestryChanged:Connect(function(_, parent)
-    if not parent then
-        ScreenGui:Destroy()
-    end
-end)
+print("[StatsGUI] done")
