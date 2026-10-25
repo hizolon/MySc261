@@ -1,12 +1,28 @@
--- Скрипт создаёт 10 уведомлений
--- Автор: flarnux
+-- ============================================
+-- Уведомления от flarnux
+-- Запускать как LocalScript или через Executor
+-- ============================================
 
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
 local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    warn("[flarnux] LocalPlayer = nil. Нужен LocalScript или Executor!")
+    return
+end
 
-local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+if not playerGui then
+    warn("[flarnux] PlayerGui не найден")
+    return
+end
 
--- Контейнер для уведомлений
+print("[flarnux] старт")
+
+local old = playerGui:FindFirstChild("FlarnuxNotifications")
+if old then old:Destroy() end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FlarnuxNotifications"
 screenGui.ResetOnSpawn = false
@@ -17,7 +33,6 @@ screenGui.Parent = playerGui
 local function createNotification(index)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.fromOffset(320, 70)
-    frame.Position = UDim2.fromOffset(10, 10 + (index - 1) * 78)
     frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     frame.BackgroundTransparency = 0.15
     frame.BorderSizePixel = 0
@@ -32,7 +47,6 @@ local function createNotification(index)
     stroke.Thickness = 2
     stroke.Parent = frame
 
-    -- Заголовок
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -16, 0, 24)
     title.Position = UDim2.fromOffset(8, 6)
@@ -44,7 +58,6 @@ local function createNotification(index)
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = frame
 
-    -- Основной текст
     local body = Instance.new("TextLabel")
     body.Size = UDim2.new(1, -16, 0, 30)
     body.Position = UDim2.fromOffset(8, 30)
@@ -57,41 +70,33 @@ local function createNotification(index)
     body.TextXAlignment = Enum.TextXAlignment.Left
     body.Parent = frame
 
-    -- Появление с анимацией
-    frame.Position = UDim2.fromOffset(-400, 10 + (index - 1) * 78)
-    local tweenService = game:GetService("TweenService")
-    tweenService:Create(
+    local targetY = 10 + (index - 1) * 78
+    frame.Position = UDim2.fromOffset(-400, targetY)
+
+    TweenService:Create(
         frame,
         TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { Position = UDim2.fromOffset(10, 10 + (index - 1) * 78) }
+        { Position = UDim2.fromOffset(10, targetY) }
     ):Play()
-
-    return frame
 end
 
--- Создаём 10 уведомлений с задержкой
 for i = 1, 10 do
     task.wait(0.15)
     createNotification(i)
 end
 
--- Через 8 секунд плавно убираем всё
+print("[flarnux] 10 уведомлений создано")
+
 task.wait(8)
 
 for _, child in ipairs(screenGui:GetChildren()) do
     if child:IsA("Frame") then
-        local tweenService = game:GetService("TweenService")
-        tweenService:Create(
-            child,
-            TweenInfo.new(0.5),
-            { BackgroundTransparency = 1 }
-        ):Play()
-
+        TweenService:Create(child, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
         for _, sub in ipairs(child:GetDescendants()) do
             if sub:IsA("TextLabel") then
-                tweenService:Create(sub, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
+                TweenService:Create(sub, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
             elseif sub:IsA("UIStroke") then
-                tweenService:Create(sub, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+                TweenService:Create(sub, TweenInfo.new(0.5), { Transparency = 1 }):Play()
             end
         end
     end
@@ -99,3 +104,4 @@ end
 
 task.wait(1)
 screenGui:Destroy()
+print("[flarnux] завершено")
