@@ -1,107 +1,58 @@
 -- ============================================
--- Уведомления от flarnux
--- Запускать как LocalScript или через Executor
+-- Уведомления от flarnux (нативные, справа внизу)
+-- LocalScript или Executor
 -- ============================================
 
+local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
-    warn("[flarnux] LocalPlayer = nil. Нужен LocalScript или Executor!")
-    return
-end
-
-local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-if not playerGui then
-    warn("[flarnux] PlayerGui не найден")
+    warn("[flarnux] Нужен LocalScript или Executor!")
     return
 end
 
 print("[flarnux] старт")
 
-local old = playerGui:FindFirstChild("FlarnuxNotifications")
-if old then old:Destroy() end
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FlarnuxNotifications"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true
-screenGui.DisplayOrder = 999
-screenGui.Parent = playerGui
-
-local function createNotification(index)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(320, 70)
-    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    frame.BackgroundTransparency = 0.15
-    frame.BorderSizePixel = 0
-    frame.Parent = screenGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = frame
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 50, 50)
-    stroke.Thickness = 2
-    stroke.Parent = frame
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -16, 0, 24)
-    title.Position = UDim2.fromOffset(8, 6)
-    title.BackgroundTransparency = 1
-    title.Text = "!!ATTENTION!!"
-    title.TextColor3 = Color3.fromRGB(255, 60, 60)
-    title.TextSize = 18
-    title.Font = Enum.Font.SourceSansBold
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = frame
-
-    local body = Instance.new("TextLabel")
-    body.Size = UDim2.new(1, -16, 0, 30)
-    body.Position = UDim2.fromOffset(8, 30)
-    body.BackgroundTransparency = 1
-    body.Text = "Этот пиздатый скрипт создал flarnux"
-    body.TextColor3 = Color3.fromRGB(255, 255, 255)
-    body.TextSize = 14
-    body.Font = Enum.Font.SourceSans
-    body.TextWrapped = true
-    body.TextXAlignment = Enum.TextXAlignment.Left
-    body.Parent = frame
-
-    local targetY = 10 + (index - 1) * 78
-    frame.Position = UDim2.fromOffset(-400, targetY)
-
-    TweenService:Create(
-        frame,
-        TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { Position = UDim2.fromOffset(10, targetY) }
-    ):Play()
-end
-
-for i = 1, 10 do
-    task.wait(0.15)
-    createNotification(i)
-end
-
-print("[flarnux] 10 уведомлений создано")
-
-task.wait(8)
-
-for _, child in ipairs(screenGui:GetChildren()) do
-    if child:IsA("Frame") then
-        TweenService:Create(child, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
-        for _, sub in ipairs(child:GetDescendants()) do
-            if sub:IsA("TextLabel") then
-                TweenService:Create(sub, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
-            elseif sub:IsA("UIStroke") then
-                TweenService:Create(sub, TweenInfo.new(0.5), { Transparency = 1 }):Play()
-            end
-        end
+-- Ждём, пока CoreGui будет готов принимать уведомления
+local function waitForCoreGui()
+    local tries = 0
+    while tries < 50 do
+        local ok = pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = "test",
+                Text = "test",
+                Duration = 0
+            })
+        end)
+        if ok then return true end
+        tries = tries + 1
+        task.wait(0.1)
     end
+    return false
 end
 
-task.wait(1)
-screenGui:Destroy()
-print("[flarnux] завершено")
+if not waitForCoreGui() then
+    warn("[flarnux] CoreGui не готов принимать уведомления")
+    return
+end
+
+-- Отправляем 10 уведомлений
+for i = 1, 10 do
+    local ok, err = pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "!!ATTENTION!!",
+            Text = "Этот пиздатый скрипт создал flarnux",
+            Icon = "rbxassetid://0", -- можно убрать строку, если иконка не нужна
+            Duration = 5
+        })
+    end)
+
+    if not ok then
+        warn("[flarnux] Ошибка на уведомлении " .. i .. ": " .. tostring(err))
+    end
+
+    task.wait(0.4) -- пауза между уведомлениями, чтобы они не слиплись
+end
+
+print("[flarnux] 10 уведомлений отправлено")
