@@ -1,6 +1,5 @@
 -- ============================================
--- Уведомления от flarnux (нативные, справа внизу)
--- LocalScript или Executor
+-- Уведомления от flarnux
 -- ============================================
 
 local StarterGui = game:GetService("StarterGui")
@@ -14,7 +13,6 @@ end
 
 print("[flarnux] старт")
 
--- Ждём, пока CoreGui будет готов принимать уведомления
 local function waitForCoreGui()
     local tries = 0
     while tries < 50 do
@@ -37,13 +35,12 @@ if not waitForCoreGui() then
     return
 end
 
--- Отправляем 10 уведомлений
 for i = 1, 10 do
     local ok, err = pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title = "!!ATTENTION!!",
             Text = "Этот пиздатый скрипт создал flarnux",
-            Icon = "rbxassetid://0", -- можно убрать строку, если иконка не нужна
+            Icon = "rbxassetid://0", 
             Duration = 5
         })
     end)
@@ -52,7 +49,7 @@ for i = 1, 10 do
         warn("[flarnux] Ошибка на уведомлении " .. i .. ": " .. tostring(err))
     end
 
-    task.wait(0.4) -- пауза между уведомлениями, чтобы они не слиплись
+    task.wait(0.3) 
 end
 
 print("[flarnux] 10 уведомлений отправлено")
