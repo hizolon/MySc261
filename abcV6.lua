@@ -8,7 +8,7 @@
 ╚═╝ ╚═════╝╚═╝╚═╝ ╚═╝ ╚═══╝ ╚═╝ ╚═╝ ╚═╝
 SCRIPT HIZOLON PRIVAT SS+
 ─────────────────────────
-• Проход сквозь стены с сохранением опоры на пол
+• Невидимый персонаж
 • Позиционирование строго позади цели
 • Разворот ЛИЦОМ к цели
 • Корректная пинг-компенсация (без перелёта)
@@ -34,14 +34,14 @@ local CONFIG = {
 -- Позиционирование
 BEHIND_STUDS = 3,
 HEIGHT_OFFSET = 0,
--- Стены (локально, опора на пол сохранена)
-WALL_HACK = false,
+-- Невидимость
+INVISIBLE = false,
 EMERGENCY_HP = 30,
 SAFE_ZONE = false,
 AUTO_RESET = false,
 RESET_THRESHOLD = 0.30, -- fraction of MaxHealth
 SAFE_DEPTH = 80,
-SAFE_HEIGHT = 130, -- reserved for other modes
+SAFE_HEIGHT = 130,
 -- Пинг-компенсация (умеренная, без «перелёта»)
 PING_COMPENSATE = true,
 PREDICTION_MULT = 1.0,
@@ -206,19 +206,15 @@ local function makeToggle(name, x, width)
 end
 local SafeToggle = makeToggle("SAVE ZONA", 7, 94)
 local ResetToggle = makeToggle("AUTO RESET", 108, 95)
-local WallHackToggle = makeToggle("WALL HACK", 7, 94)
-WallHackToggle.Position = UDim2.new(0, 7, 0, 258)
-local NullButton = makeToggle("NULL", 108, 95)
-NullButton.Position = UDim2.new(0, 108, 0, 258)
-NullButton.Text = "NULL"
-NullButton.TextColor3 = Color3.fromRGB(145, 145, 145)
+local InvisToggle = makeToggle("INVIS", 7, 196)
+InvisToggle.Position = UDim2.new(0, 7, 0, 258)
 local function paintToggle(button, title, enabled)
     button.Text = title .. (enabled and ": ON" or ": OFF")
     button.TextColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 80, 80)
 end
 paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
 paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
-paintToggle(WallHackToggle, "WALL HACK", CONFIG.WALL_HACK)
+paintToggle(InvisToggle, "INVIS", CONFIG.INVISIBLE)
 -- ============================================================
 -- VARIABLES
 -- ============================================================
@@ -226,9 +222,11 @@ local SelectedTarget = nil
 local PlayerButtons = {}
 local BackstabActive = false
 local PositionConnection = nil
+local InvisConnection = nil
 local HealthConnection = nil
 local SafePlatform = nil
 local SafeReturn = nil
+local SafeMode = nil
 local EmergencyActive = false
 local PreviousAutoRotate = nil
 local CharacterConnection = nil
@@ -255,110 +253,44 @@ if not plr or not plr.Character then return nil end
 return plr.Character:FindFirstChild("HumanoidRootPart")
 end
 -- ============================================================
--- WALL HACK: local wall collision override, preserve normal floor physics
+-- INVISIBILITY
 -- ============================================================
-local WallHack = {
-    OriginalCollisions = setmetatable({}, {__mode = "k"}),
-    Connection = nil,
-    ScanTimer = 0
-}
-local WallRayParams = RaycastParams.new()
-WallRayParams.FilterType = Enum.RaycastFilterType.Exclude
-WallRayParams.IgnoreWater = true
-local WallDirections = {
-    Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0),
-    Vector3.new(0, 0, 1), Vector3.new(0, 0, -1),
-    Vector3.new(0.70710678, 0, 0.70710678),
-    Vector3.new(-0.70710678, 0, 0.70710678),
-    Vector3.new(0.70710678, 0, -0.70710678),
-    Vector3.new(-0.70710678, 0, -0.70710678)
-}
-local WallRayHeights = {-0.85, 0.9}
-
-local function distanceToPartBounds(part, point)
-    local p = part.CFrame:PointToObjectSpace(point)
-    local half = part.Size * 0.5
-    local dx = math.max(math.abs(p.X) - half.X, 0)
-    local dy = math.max(math.abs(p.Y) - half.Y, 0)
-    local dz = math.max(math.abs(p.Z) - half.Z, 0)
-    return math.sqrt(dx * dx + dy * dy + dz * dz)
-end
-
-function WallHack.restore()
-    if WallHack.Connection then
-        WallHack.Connection:Disconnect()
-        WallHack.Connection = nil
-    end
-    for part, wasCollidable in pairs(WallHack.OriginalCollisions) do
-        if part and part.Parent then
-            pcall(function() part.CanCollide = wasCollidable end)
+local Invisibility = {}
+local OriginalModifiers = setmetatable({}, {__mode = "k"})
+local DescendantConnection = nil
+local function hideDescendant(obj)
+    if obj:IsA("BasePart") then
+        if OriginalModifiers[obj] == nil then
+            OriginalModifiers[obj] = obj.LocalTransparencyModifier
         end
-        WallHack.OriginalCollisions[part] = nil
-    end
-    WallHack.ScanTimer = 0
-end
-
-function WallHack.scan()
-    local character = Player.Character
-    local hrp = getHRP(Player)
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    if not character or not hrp or not humanoid or humanoid.Health <= 0 then return end
-
-    -- Ignore own character and local safe platform; preserve actual floor collisions.
-    local excluded = {character}
-    if SafePlatform then table.insert(excluded, SafePlatform) end
-    WallRayParams.FilterDescendantsInstances = excluded
-    local floorHit = workspace:Raycast(hrp.Position, Vector3.new(0, -5, 0), WallRayParams)
-    local floorPart = floorHit and floorHit.Normal.Y > 0.55 and floorHit.Instance or nil
-
-    for _, direction in ipairs(WallDirections) do
-        for _, height in ipairs(WallRayHeights) do
-            local origin = hrp.Position + Vector3.new(0, height, 0)
-            local hit = workspace:Raycast(origin, direction * 4.5, WallRayParams)
-            local part = hit and hit.Instance
-            if part and part:IsA("BasePart") and part ~= floorPart
-                and part.Anchored and part.CanCollide and math.abs(hit.Normal.Y) < 0.4
-                and not part:IsA("Terrain") then
-                -- Do not disable large, thin horizontal platforms / floors.
-                local horizontalSlab = math.abs(part.CFrame.UpVector.Y) > 0.8
-                    and part.Size.Y < 3
-                    and (part.Size.X > 8 or part.Size.Z > 8)
-                if not horizontalSlab then
-                    if WallHack.OriginalCollisions[part] == nil then
-                        WallHack.OriginalCollisions[part] = part.CanCollide
-                    end
-                    pcall(function() part.CanCollide = false end)
-                end
-            end
-        end
-    end
-
-    -- Keep nearby walls passable while inside them; restore when far away.
-    for part, original in pairs(WallHack.OriginalCollisions) do
-        if not part or not part.Parent then
-            WallHack.OriginalCollisions[part] = nil
-        elseif distanceToPartBounds(part, hrp.Position) > 7 then
-            pcall(function() part.CanCollide = original end)
-            WallHack.OriginalCollisions[part] = nil
-        end
+        obj.LocalTransparencyModifier = 1
     end
 end
-
-function WallHack.start()
-    if WallHack.Connection then return end
-    WallHack.ScanTimer = 0
-    WallHack.scan()
-    WallHack.Connection = RunService.Heartbeat:Connect(function(dt)
-        WallHack.ScanTimer = WallHack.ScanTimer + dt
-        if WallHack.ScanTimer < 0.10 then return end
-        WallHack.ScanTimer = 0
-        pcall(WallHack.scan)
+function Invisibility.apply()
+    local char = Player.Character
+    if not char then return end
+    for _, obj in ipairs(char:GetDescendants()) do
+        hideDescendant(obj)
+    end
+    if DescendantConnection then DescendantConnection:Disconnect() end
+    DescendantConnection = char.DescendantAdded:Connect(function(obj)
+        if CONFIG.INVISIBLE then
+            hideDescendant(obj)
+        end
     end)
 end
+function Invisibility.remove()
+    if DescendantConnection then DescendantConnection:Disconnect() DescendantConnection = nil end
+    for obj, original in pairs(OriginalModifiers) do
+        if obj and obj.Parent then
+            pcall(function() obj.LocalTransparencyModifier = original end)
+        end
+        OriginalModifiers[obj] = nil
+    end
+end
 
--- Roblox/server physics and Terrain collision are not overridden by this.
--- Safe-zone geometry and wall collision changes are client-side only.
--- The game server can reject movement or override collisions.
+-- A client-side platform and LocalTransparencyModifier are local effects.
+-- Other players will not necessarily see the same character/platform state.
 local function removeSafeZone(restorePosition)
     if restorePosition and SafeReturn then
         local hrp = getHRP(Player)
@@ -370,20 +302,16 @@ local function removeSafeZone(restorePosition)
     end
     if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
     SafeReturn = nil
+    SafeMode = nil
 end
 local function createSafeZone(mode)
     local hrp = getHRP(Player)
     if not hrp then return false end
     if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
     SafeReturn = SafeReturn or hrp.CFrame
-    -- Target CFrame: six supplied rotation entries + orthogonal last row.
-    local destinationCF = CFrame.new(
-        -216.581772, -10000.0029, -145.716171,
-         0.852498353, -1.00300547e-07,  0.522729933,
-         6.29894217e-08, 1, 8.91515128e-08,
-        -0.522729933, -4.30750616e-08, 0.852498353
-    )
-    local destination = destinationCF.Position
+    SafeMode = mode or "above"
+    local y = SafeMode == "below" and -CONFIG.SAFE_DEPTH or CONFIG.SAFE_HEIGHT
+    local destination = Vector3.new(hrp.Position.X, y, hrp.Position.Z)
     local platform = Instance.new("Part")
     platform.Name = "HizolonLocalSafeZone"
     platform.Size = Vector3.new(28, 2, 28)
@@ -394,11 +322,11 @@ local function createSafeZone(mode)
     platform.CastShadow = false
     platform.Material = Enum.Material.SmoothPlastic
     platform.Color = Color3.fromRGB(0, 0, 0)
-    platform.Transparency = 1
-    platform.CFrame = CFrame.new(destination - Vector3.new(0, 3, 0))
+    platform.Transparency = SafeMode == "below" and 1 or 0.65
+    platform.CFrame = CFrame.new(destination)
     platform.Parent = workspace
     SafePlatform = platform
-    hrp.CFrame = destinationCF
+    hrp.CFrame = CFrame.new(destination + Vector3.new(0, 5, 0))
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
     return true
@@ -449,64 +377,186 @@ local function monitorHealth(character)
     end)
     checkHealth(hum.Health)
 end
+
 -- ============================================================
--- POSITIONER v2
--- Чёткое позиционирование позади + разворот ЛИЦОМ к цели
--- + корректная пинг-компенсация (без "перелёта")
+-- POSITIONER v3 — стабильное позиционирование позади цели
+-- • Учитывает ragdoll / падение (берёт торс, а не HRP)
+-- • Отсекает NaN / невалидные координаты
+-- • Делает рейкаст под ноги (не телепортит в пустоту)
+-- • Пинг-компенсация ограничена 3 studs, отключена в ragdoll
+-- • Разворот ЛИЦОМ к цели, независимо от камеры
 -- ============================================================
 local Positioner = {}
+
+-- Валидация точки: не NaN, в пределах разумного, выше порога падения
+local function validPoint(p)
+    if not p then return false end
+    if p.X ~= p.X or p.Y ~= p.Y or p.Z ~= p.Z then return false end
+    if math.abs(p.X) > 100000 or math.abs(p.Y) > 100000 or math.abs(p.Z) > 100000 then
+        return false
+    end
+    if p.Y <= workspace.FallenPartsDestroyHeight + 12 then return false end
+    return true
+end
+
+-- Надёжная поза цели: HRP или торс (для ragdoll), + плоский LookVector
+local function reliableTargetPose(targetHRP)
+    if not targetHRP or not targetHRP.Parent then return nil end
+    local char = targetHRP.Parent
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local torso = char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("Torso")
+        or char:FindFirstChild("LowerTorso")
+
+    local rootPos = targetHRP.Position
+    local torsoPos = torso and torso.Position
+
+    -- Определяем, лежит ли цель (ragdoll / physics / падение)
+    local ragdolled = false
+    if hum then
+        local state = hum:GetState()
+        ragdolled = state == Enum.HumanoidStateType.Ragdoll
+            or state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.Physics
+            or state == Enum.HumanoidStateType.PlatformStanding
+    end
+
+    -- Если HRP улетел от торса (>7 studs) или цель в ragdoll — берём торс
+    local useTorso = torsoPos and validPoint(torsoPos)
+        and (not validPoint(rootPos)
+            or (torsoPos - rootPos).Magnitude > 7
+            or ragdolled)
+
+    local pos = useTorso and torsoPos or rootPos
+    if not validPoint(pos) then return nil end
+
+    -- Плоский LookVector (без Y)
+    local look = targetHRP.CFrame.LookVector
+    local flat = Vector3.new(look.X, 0, look.Z)
+
+    -- В ragdoll / при почти нулевом Look — смотрим от себя к цели
+    if ragdolled or flat.Magnitude < 0.4 then
+        local own = getHRP(Player)
+        local away = own and (pos - own.Position) or Vector3.new(0, 0, -1)
+        flat = Vector3.new(away.X, 0, away.Z)
+    end
+    if flat.Magnitude < 0.05 then flat = Vector3.new(0, 0, -1) end
+
+    return pos, flat.Unit, ragdolled
+end
+
 function Positioner.getBehindCFrame(targetHRP)
-if not targetHRP then return nil end
--- === 1. БАЗОВЫЕ ДАННЫЕ ЦЕЛИ ===
-local targetCF = targetHRP.CFrame
-local targetPos = targetHRP.Position
-local targetLook = targetCF.LookVector
--- === 2. КОРРЕКТНАЯ ПИНГ-КОМПЕНСАЦИЯ ===
-local pingRaw = getPing() / 1000
-local leadTime = math.min(pingRaw * CONFIG.PING_SAFETY,
-CONFIG.MAX_LEAD_TIME)
-local predictedPos = targetPos
-local predictedLook = targetLook
-if CONFIG.PING_COMPENSATE then
-local vel = targetHRP.AssemblyLinearVelocity
--- Умеренный множитель предсказания (clamp 0.5–1.5)
-local predMult = math.clamp(CONFIG.PREDICTION_MULT, 0.5, 1.5)
-predictedPos = targetPos + vel * leadTime * predMult
--- Предсказание поворота — только если цель реально вращается
-local angVel = targetHRP.AssemblyAngularVelocity
-if angVel.Magnitude > 0.1 then
-local angle = angVel.Magnitude * leadTime * predMult
-angle = math.clamp(angle, -math.pi / 2, math.pi / 2)
-local axis = angVel.Unit
-local rotDelta = CFrame.fromAxisAngle(axis, angle)
-predictedLook = (rotDelta * targetLook).Unit
+    local pos, flatLook, ragdolled = reliableTargetPose(targetHRP)
+    if not pos then return nil end
+
+    local studs = math.clamp(CONFIG.BEHIND_STUDS, 2.1, 8)
+
+    -- Пинг-компенсация: короткая, ограничена 3 studs, отключена в ragdoll
+    if CONFIG.PING_COMPENSATE and not ragdolled then
+        local vel = targetHRP.AssemblyLinearVelocity
+        local flatVel = Vector3.new(vel.X, 0, vel.Z)
+        local ping = math.clamp(getPing(), 0, 300)
+        local leadTime = math.clamp(ping / 1000 * 0.65 + 0.018, 0, CONFIG.MAX_LEAD_TIME)
+        local lead = flatVel * leadTime
+        if lead.Magnitude > 3 then lead = lead.Unit * 3 end
+        pos = pos + lead
+    end
+
+    -- Точка позади цели
+    local destination = pos - flatLook * studs
+    local y = pos.Y + CONFIG.HEIGHT_OFFSET
+
+    -- Если цель лежит — рейкаст вниз, чтобы встать на пол, а не в воздух
+    if ragdolled then
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = { targetHRP.Parent, Player.Character }
+        local hit = workspace:Raycast(
+            destination + Vector3.new(0, 7, 0),
+            Vector3.new(0, -24, 0),
+            params
+        )
+        if hit then
+            local root = getHRP(Player)
+            local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+            local standingHeight = (hum and hum.HipHeight or 2)
+                + (root and root.Size.Y * 0.5 or 1) + 0.1
+            y = hit.Position.Y + standingHeight
+        end
+    end
+
+    destination = Vector3.new(destination.X, y, destination.Z)
+    if not validPoint(destination) then return nil end
+
+    -- Разворот ЛИЦОМ к цели (по горизонтали, без наклона)
+    local face = Vector3.new(pos.X, y, pos.Z)
+    if (face - destination).Magnitude < 0.15 then return nil end
+
+    return CFrame.lookAt(destination, face)
 end
--- Вертикальная компенсация (прыжок / падение)
-predictedPos = predictedPos + Vector3.new(0, vel.Y * leadTime * 0.5, 0)
+
+function Positioner.teleport(force)
+    if ResetInProgress then return false, "сброс активен" end
+    if not SelectedTarget or SelectedTarget.Parent ~= Players then
+        return false, "цель недоступна"
+    end
+    local char = Player.Character
+    local myHRP = getHRP(Player)
+    local targetHRP = getHRP(SelectedTarget)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if not char or not myHRP or not hum or hum.Health <= 0 then
+        return false, "ожидание персонажа"
+    end
+    if not targetHRP or not isAlive(SelectedTarget) then
+        return false, "ожидание цели"
+    end
+    if myHRP.Anchored then return false, "персонаж закреплён" end
+
+    -- Отключаем авто-разворот: разворачивать будем сами, лицом к цели
+    if hum.AutoRotate then hum.AutoRotate = false end
+
+    local newCF = Positioner.getBehindCFrame(targetHRP)
+    if not newCF then return false, "позиция недоступна" end
+
+    -- Если уже на месте — не дёргаем (устраняет тряску)
+    local gap = (myHRP.Position - newCF.Position).Magnitude
+    if not force and gap <= 0.32 then
+        return true, "рядом"
+    end
+
+    -- PivotTo двигает всё тело целиком, а не оставляет части
+    local ok, err = pcall(function()
+        char:PivotTo(newCF)
+        if force then
+            myHRP.AssemblyLinearVelocity = Vector3.zero
+            myHRP.AssemblyAngularVelocity = Vector3.zero
+        else
+            -- при обычном следовании гасим только горизонталь и вращение,
+            -- вертикаль (прыжок) сохраняем
+            local v = myHRP.AssemblyLinearVelocity
+            myHRP.AssemblyLinearVelocity = Vector3.new(0, v.Y, 0)
+            myHRP.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
+
+    if not ok then
+        -- Fallback: прямая установка CFrame на HRP
+        local fallbackOK = pcall(function()
+            myHRP.CFrame = newCF
+            if force then
+                myHRP.AssemblyLinearVelocity = Vector3.zero
+                myHRP.AssemblyAngularVelocity = Vector3.zero
+            end
+        end)
+        if not fallbackOK then
+            return false, "ошибка перемещения: " .. tostring(err):sub(1, 70)
+        end
+    end
+
+    return true, "TP выполнен"
 end
--- === 3. ЧЁТКАЯ ПОЗИЦИЯ ПОЗАДИ ===
-local behindPos = predictedPos - predictedLook * CONFIG.BEHIND_STUDS
-behindPos = behindPos + Vector3.new(0, CONFIG.HEIGHT_OFFSET, 0)
--- === 4. РАЗВОРОТ ЛИЦОМ К РЕАЛЬНОЙ ЦЕЛИ ===
-local facePos = Vector3.new(predictedPos.X, behindPos.Y, predictedPos.Z)
-if (facePos - behindPos).Magnitude < 0.01 then return CFrame.new(behindPos) end
-local faceCFrame = CFrame.lookAt(behindPos, facePos)
-return faceCFrame
-end
-function Positioner.teleport()
-if ResetInProgress or not SelectedTarget or not isAlive(SelectedTarget) then return end
-local targetHRP = getHRP(SelectedTarget)
-local myHRP = getHRP(Player)
-if not targetHRP or not myHRP then return end
-local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-if not hum or hum.Health <= 0 then return end
-if hum.AutoRotate then hum.AutoRotate = false end
-local newCF = Positioner.getBehindCFrame(targetHRP)
-if not newCF then return end
-myHRP.CFrame = newCF
-myHRP.AssemblyLinearVelocity = Vector3.zero
-myHRP.AssemblyAngularVelocity = Vector3.zero
-end
+
 -- ============================================================
 -- STATUS
 -- ============================================================
@@ -644,16 +694,19 @@ removeSafeZone(false)
 CONFIG.SAFE_ZONE = false
 paintToggle(SafeToggle, "SAVE ZONA", false)
 end
-Positioner.teleport() -- immediate first move; no first-frame delay
+if CONFIG.INVISIBLE then Invisibility.apply() end
+pcall(Positioner.teleport, true) -- immediate first move; force to reset momentum
 PositionConnection = RunService.PreSimulation:Connect(function()
 pcall(Positioner.teleport)
 end)
--- Wall mode, if enabled, runs independently of tracking.
+-- Invisibility is event-driven; no per-frame descendant scans.
 end
 StopBackstab = function()
 if not BackstabActive then return end
 BackstabActive = false
 if PositionConnection then PositionConnection:Disconnect() PositionConnection = nil end
+if InvisConnection then InvisConnection:Disconnect() InvisConnection = nil end
+if not CONFIG.INVISIBLE then Invisibility.remove() end
 local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
 if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate end
 PreviousAutoRotate = nil
@@ -675,12 +728,11 @@ SafeToggle.MouseButton1Click:Connect(function()
     end
     paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
 end)
-WallHackToggle.MouseButton1Click:Connect(function()
-    CONFIG.WALL_HACK = not CONFIG.WALL_HACK
-    if CONFIG.WALL_HACK then WallHack.start() else WallHack.restore() end
-    paintToggle(WallHackToggle, "WALL HACK", CONFIG.WALL_HACK)
+InvisToggle.MouseButton1Click:Connect(function()
+    CONFIG.INVISIBLE = not CONFIG.INVISIBLE
+    if CONFIG.INVISIBLE then Invisibility.apply() else Invisibility.remove() end
+    paintToggle(InvisToggle, "INVIS", CONFIG.INVISIBLE)
 end)
--- NULL is intentionally inert; reserved for a future feature.
 ResetToggle.MouseButton1Click:Connect(function()
     CONFIG.AUTO_RESET = not CONFIG.AUTO_RESET
     paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
@@ -691,11 +743,11 @@ ResetToggle.MouseButton1Click:Connect(function()
 end)
 CloseButton.MouseButton1Click:Connect(function()
 StopBackstab()
-WallHack.restore()
 removeSafeZone(true)
 if HealthConnection then HealthConnection:Disconnect() end
 if DeathConnection then DeathConnection:Disconnect() end
 if CharacterConnection then CharacterConnection:Disconnect() end
+if DescendantConnection then DescendantConnection:Disconnect() end
 for _, conn in ipairs(CleanupConnections) do conn:Disconnect() end
 ScreenGui:Destroy()
 end)
@@ -718,16 +770,18 @@ end))
 -- RESPAWN HANDLER
 -- ============================================================
 CharacterConnection = Player.CharacterAdded:Connect(function(character)
-    -- Clear locally modified wall collisions from the previous character.
-    local wallEnabled = CONFIG.WALL_HACK
-    WallHack.restore()
-    if wallEnabled then WallHack.start() end
+    Invisibility.remove()
     PreviousAutoRotate = nil
     if SafePlatform then removeSafeZone(false) end
     monitorHealth(character)
     if BackstabActive then
         local hum = character:WaitForChild("Humanoid", 10)
         if hum then PreviousAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
+    end
+    if CONFIG.INVISIBLE then
+        task.defer(function()
+            if Player.Character == character then Invisibility.apply() end
+        end)
     end
 end)
 if Player.Character then task.defer(monitorHealth, Player.Character) end
