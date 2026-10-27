@@ -920,6 +920,7 @@ local function buildLockOverlay()
         else
             KeyStatus.Text = "Неверный ключ!"
             KeyStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+            Message("КЛЮЧ МОЖНО ПОЛУЧИТЬ ЗДЕСЬ", "тест ссылка", 5)
         end
     end)
 end
