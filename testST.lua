@@ -1,4 +1,4 @@
--- HIZOLON PRIVAT SS+ v5.1 | LocalScript
+-- HIZOLON PRIVAT SS+ v5.2 | LocalScript
 -- FPS BOOST + ESP + Backstab positioner
 -- ============================================================
 -- SERVICES
@@ -71,7 +71,7 @@ TitleBarCorner.CornerRadius = UDim.new(0, 4)
 TitleBarCorner.Parent = TitleBar
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -48, 1, 0)
+Title.Size = UDim2.new(1, -26, 1, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "SCRIPT HIZOLON PRIVAT SS+"
 Title.TextColor3 = Color3.fromRGB(255, 80, 80)
@@ -81,24 +81,10 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Position = UDim2.new(0, 7, 0, 0)
 Title.Parent = TitleBar
 
-local CloseButton = Instance.new("TextButton")
-CloseButton.Position = UDim2.new(1, -21, 0, 0)
-CloseButton.Size = UDim2.new(0, 21, 0, 21)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-CloseButton.BorderSizePixel = 0
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.TextSize = 11
-CloseButton.Parent = TitleBar
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 4)
-CloseCorner.Parent = CloseButton
-
+-- Только свернуть/развернуть (кнопка закрытия удалена)
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "Minimize"
-MinimizeButton.Position = UDim2.new(1, -42, 0, 0)
+MinimizeButton.Position = UDim2.new(1, -21, 0, 0)
 MinimizeButton.Size = UDim2.fromOffset(21, 21)
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
 MinimizeButton.BorderSizePixel = 0
@@ -413,7 +399,7 @@ function UpdateStatus()
 end
 
 -- ============================================================
--- PLAYER LIST
+-- PLAYER LIST  (Никнейм (@Username))
 -- ============================================================
 local function RefreshPlayerList()
     for _, child in pairs(PlayerScrollFrame:GetChildren()) do child:Destroy() end
@@ -460,11 +446,13 @@ local function RefreshPlayerList()
             nameLabel.Size = UDim2.new(1, -25, 1, 0)
             nameLabel.Position = UDim2.new(0, 21, 0, 0)
             nameLabel.BackgroundTransparency = 1
-            nameLabel.Text = plr.Name
+            -- Никнейм (DisplayName) + @username
+            nameLabel.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
             nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
             nameLabel.TextSize = 11
             nameLabel.Font = Enum.Font.SourceSans
             nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
             nameLabel.Parent = entry
 
             local click = Instance.new("TextButton")
@@ -771,18 +759,6 @@ EspToggle.MouseButton1Click:Connect(function()
         stopEsp()
     end
     paintToggle(EspToggle, "ESP", CONFIG.ESP)
-end)
-
-CloseButton.MouseButton1Click:Connect(function()
-    StopBackstab()
-    removeSafeZone(true)
-    stopFpsBoost()
-    stopEsp()
-    if HealthConnection then HealthConnection:Disconnect() end
-    if DeathConnection then DeathConnection:Disconnect() end
-    if CharacterConnection then CharacterConnection:Disconnect() end
-    for _, conn in ipairs(CleanupConnections) do conn:Disconnect() end
-    ScreenGui:Destroy()
 end)
 
 -- ============================================================
