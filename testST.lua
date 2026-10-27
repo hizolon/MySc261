@@ -7,7 +7,7 @@ local LocalPlayer = Players.LocalPlayer
 local CONFIG = {
     BEHIND_STUDS   = 2.5,       -- насколько позади цели (studs)
     HEIGHT_OFFSET  = 0,         -- смещение по высоте
-    RESPONSIVENESS = 200,       -- жёсткость AlignPosition (больше = жёстче)
+    RESPONSIVENESS = 400,       -- жёсткость AlignPosition (больше = жёстче)
     MAX_FORCE      = 1000000,   -- макс. сила привязки
     MAX_TORQUE     = 1000000,   -- макс. момент для поворота
     ATTACH_RANGE   = 500,       -- если цель дальше — перепривязка
