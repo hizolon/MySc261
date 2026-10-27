@@ -1,35 +1,32 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Stats = game:GetService("Stats")
 local StarterGui = game:GetService("StarterGui")
 local CoreGui = game:GetService("CoreGui")
 local Player = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
 local CONFIG = {
     BEHIND_STUDS = 3,
     HEIGHT_OFFSET = 0,
+    TWEEN_TIME = 0.08,
     EMERGENCY_HP = 30,
     SAFE_ZONE = false,
     AUTO_RESET = false,
     RESET_THRESHOLD = 0.30,
     SAFE_DEPTH = 80,
     SAFE_HEIGHT = 130,
-    PING_COMPENSATE = true,
-    PREDICTION_MULT = 1.0,
-    PING_SAFETY = 1.3,
-    MAX_LEAD_TIME = 0.12,
-    SMOOTH_FACTOR = 0.15,
+    FOLLOW_MODE = "instant",
 }
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ScriptHizolonPrivatSSPlus"
+ScreenGui.Name = "ScriptHizolonFollow"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 210, 0, 265)
-MainFrame.Position = UDim2.new(0.5, -105, 0.5, -132)
+MainFrame.Size = UDim2.new(0, 210, 0, 286)
+MainFrame.Position = UDim2.new(0.5, -105, 0.5, -143)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -54,7 +51,7 @@ TitleBarCorner.Parent = TitleBar
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -48, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "SCRIPT HIZOLON PRIVAT SS+ (WELD)"
+Title.Text = "HIZOLON FOLLOW (TWEEN / INSTANT)"
 Title.TextColor3 = Color3.fromRGB(255, 80, 80)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -96,7 +93,7 @@ MinCorner.Parent = MinimizeButton
 local minimized = false
 MinimizeButton.MouseButton1Click:Connect(function()
     minimized = not minimized
-    MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 265)
+    MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 286)
     MinimizeButton.Text = minimized and "+" or "-"
     for _, child in ipairs(MainFrame:GetChildren()) do
         if child:IsA("GuiObject") and child ~= TitleBar then
@@ -109,7 +106,7 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Position = UDim2.new(0, 7, 0, 28)
 StatusLabel.Size = UDim2.new(1, -14, 0, 18)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Select target to weld"
+StatusLabel.Text = "Select target to follow"
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
@@ -186,6 +183,8 @@ end
 
 local SafeToggle = makeToggle("SAVE ZONA", 7, 94)
 local ResetToggle = makeToggle("AUTO RESET", 108, 95)
+local ModeToggle = makeToggle("MODE: INSTANT", 7, 196)
+ModeToggle.Position = UDim2.new(0, 7, 0, 258)
 
 local function paintToggle(button, title, enabled)
     button.Text = title .. (enabled and ": ON" or ": OFF")
@@ -195,9 +194,16 @@ end
 paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
 paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
 
+local function paintMode(button, mode)
+    button.Text = "MODE: " .. mode:upper()
+    button.TextColor3 = mode == "instant" and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(0, 180, 255)
+end
+
+paintMode(ModeToggle, CONFIG.FOLLOW_MODE)
+
 local SelectedTarget = nil
 local PlayerButtons = {}
-local BackstabActive = false
+local FollowActive = false
 local PositionConnection = nil
 local HealthConnection = nil
 local SafePlatform = nil
@@ -208,14 +214,8 @@ local CharacterConnection = nil
 local CleanupConnections = {}
 local DeathConnection = nil
 local ResetInProgress = false
-local ActiveWeld = nil
-
-local function getPing()
-    local ok, ping = pcall(function()
-        return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-    end)
-    return ok and ping or 50
-end
+local ActiveTween = nil
+local CurrentGoal = nil
 
 local function isAlive(plr)
     if not plr or not plr.Character then return false end
@@ -270,7 +270,7 @@ local function createSafeZone(mode)
     return true
 end
 
-local StopBackstab
+local StopFollow
 
 local function emergencyRetreat()
     if ResetInProgress then return end
@@ -306,66 +306,111 @@ local function monitorHealth(character)
     checkHealth(hum.Health)
 end
 
-local WeldAttach = {}
+local Follow = {}
 
-function WeldAttach.applyPosition()
+local function computeGoal()
+    if not SelectedTarget or not isAlive(SelectedTarget) then return nil end
     local targetHRP = getHRP(SelectedTarget)
-    local myHRP = getHRP(Player)
-    if not targetHRP or not myHRP then return end
+    if not targetHRP then return nil end
     local targetCF = targetHRP.CFrame
     local behindPos = targetCF.Position - targetCF.LookVector * CONFIG.BEHIND_STUDS
     behindPos = behindPos + Vector3.new(0, CONFIG.HEIGHT_OFFSET, 0)
     local facePos = Vector3.new(targetCF.Position.X, behindPos.Y, targetCF.Position.Z)
-    myHRP.CFrame = CFrame.lookAt(behindPos, facePos)
+    return CFrame.lookAt(behindPos, facePos)
+end
+
+function Follow.instant()
+    local myHRP = getHRP(Player)
+    if not myHRP then return end
+    local goal = computeGoal()
+    if not goal then return end
+    myHRP.CFrame = goal
     myHRP.AssemblyLinearVelocity = Vector3.zero
     myHRP.AssemblyAngularVelocity = Vector3.zero
 end
 
-function WeldAttach.attach()
-    if ResetInProgress or not SelectedTarget or not isAlive(SelectedTarget) then
-        return false
-    end
-    local targetHRP = getHRP(SelectedTarget)
+function Follow.tween()
     local myHRP = getHRP(Player)
-    if not targetHRP or not myHRP then return false end
-    local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    WeldAttach.detach()
-    WeldAttach.applyPosition()
-    if hum.AutoRotate then hum.AutoRotate = false end
-    local weld = Instance.new("WeldConstraint")
-    weld.Name = "HizolonWeldAttach"
-    weld.Part0 = myHRP
-    weld.Part1 = targetHRP
-    weld.Parent = myHRP
-    ActiveWeld = weld
-    return true
+    if not myHRP then return end
+    local goal = computeGoal()
+    if not goal then return end
+
+    if ActiveTween then
+        ActiveTween:Cancel()
+        ActiveTween = nil
+    end
+
+    if not CurrentGoal then
+        CurrentGoal = myHRP.CFrame
+    end
+
+    local tweenInfo = TweenInfo.new(
+        CONFIG.TWEEN_TIME,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out
+    )
+
+    ActiveTween = TweenService:Create(myHRP, tweenInfo, { CFrame = goal })
+    ActiveTween:Play()
 end
 
-function WeldAttach.detach()
-    if ActiveWeld then
-        pcall(function() ActiveWeld:Destroy() end)
-        ActiveWeld = nil
+function Follow.tick()
+    if CONFIG.FOLLOW_MODE == "instant" then
+        Follow.instant()
+    else
+        Follow.tween()
     end
 end
 
-function WeldAttach.validate()
-    if not ActiveWeld or not ActiveWeld.Parent then return false end
-    if not ActiveWeld.Part0 or not ActiveWeld.Part1 then return false end
-    if not SelectedTarget or not isAlive(SelectedTarget) then return false end
-    local targetHRP = getHRP(SelectedTarget)
-    local myHRP = getHRP(Player)
-    if not targetHRP or not myHRP then return false end
-    if ActiveWeld.Part1 ~= targetHRP then return false end
-    local dist = (myHRP.Position - targetHRP.Position).Magnitude
-    if dist > CONFIG.BEHIND_STUDS + 4 then return false end
-    return true
+function Follow.start()
+    if FollowActive then return end
+    if not SelectedTarget or not isAlive(SelectedTarget) then
+        StatusLabel.Text = "No target selected!"
+        task.wait(1)
+        UpdateStatus()
+        return
+    end
+    FollowActive = true
+    local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+    if myHum then
+        PreviousAutoRotate = myHum.AutoRotate
+        myHum.AutoRotate = false
+    end
+    UpdateStatus()
+    local modeName = CONFIG.FOLLOW_MODE == "instant" and "Instant" or "Tween"
+    Message("HIZOLON FOLLOW", modeName .. " follow: " .. SelectedTarget.Name, 2)
+
+    Follow.tick()
+
+    PositionConnection = RunService.RenderStepped:Connect(function()
+        if not FollowActive then return end
+        if not SelectedTarget or not isAlive(SelectedTarget) then
+            Follow.stop()
+            return
+        end
+        Follow.tick()
+    end)
 end
+
+function Follow.stop()
+    if not FollowActive then return end
+    FollowActive = false
+    if PositionConnection then PositionConnection:Disconnect() PositionConnection = nil end
+    if ActiveTween then ActiveTween:Cancel() ActiveTween = nil end
+    CurrentGoal = nil
+    local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+    if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate end
+    PreviousAutoRotate = nil
+    UpdateStatus()
+    Message("HIZOLON FOLLOW", "Follow stopped", 2)
+end
+
+StopFollow = Follow.stop
 
 function UpdateStatus()
-    if BackstabActive then
+    if FollowActive then
         if SelectedTarget then
-            StatusLabel.Text = "WELDED to: " .. SelectedTarget.Name
+            StatusLabel.Text = "FOLLOWING: " .. SelectedTarget.Name .. " (" .. CONFIG.FOLLOW_MODE .. ")"
             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
         else
             StatusLabel.Text = "No target selected"
@@ -376,7 +421,7 @@ function UpdateStatus()
             StatusLabel.Text = "Target: " .. SelectedTarget.Name
             StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         else
-            StatusLabel.Text = "Select target to weld"
+            StatusLabel.Text = "Select target to follow"
             StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         end
     end
@@ -469,60 +514,18 @@ local function Message(Title, Text, Time)
     end)
 end
 
-local function StartBackstab()
-    if BackstabActive then return end
-    if not SelectedTarget then
-        StatusLabel.Text = "No target selected!"
-        task.wait(1)
-        UpdateStatus()
-        return
-    end
-    BackstabActive = true
-    local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-    if myHum then
-        PreviousAutoRotate = myHum.AutoRotate
-        myHum.AutoRotate = false
-    end
-    UpdateStatus()
-    Message("Script Hizolon Privat SS+ (WELD)", "Welding to " .. SelectedTarget.Name, 2)
-    if CONFIG.SAFE_ZONE then
-        removeSafeZone(false)
-        CONFIG.SAFE_ZONE = false
-        paintToggle(SafeToggle, "SAVE ZONA", false)
-    end
-    WeldAttach.attach()
-    PositionConnection = RunService.PreSimulation:Connect(function()
-        if not BackstabActive then return end
-        if not SelectedTarget or not isAlive(SelectedTarget) then
-            WeldAttach.detach()
-            return
-        end
-        if not WeldAttach.validate() then
-            WeldAttach.attach()
-        end
-        WeldAttach.applyPosition()
-    end)
-end
+StartButton.MouseButton1Click:Connect(function()
+    Follow.start()
+end)
 
-StopBackstab = function()
-    if not BackstabActive then return end
-    BackstabActive = false
-    if PositionConnection then PositionConnection:Disconnect() PositionConnection = nil end
-    WeldAttach.detach()
-    local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-    if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate end
-    PreviousAutoRotate = nil
-    UpdateStatus()
-    Message("Script Hizolon Privat SS+ (WELD)", "Weld stopped", 2)
-end
-
-StartButton.MouseButton1Click:Connect(StartBackstab)
-StopButton.MouseButton1Click:Connect(StopBackstab)
+StopButton.MouseButton1Click:Connect(function()
+    Follow.stop()
+end)
 
 SafeToggle.MouseButton1Click:Connect(function()
     CONFIG.SAFE_ZONE = not CONFIG.SAFE_ZONE
     if CONFIG.SAFE_ZONE then
-        if BackstabActive then StopBackstab() end
+        if FollowActive then Follow.stop() end
         createSafeZone("above")
     else
         removeSafeZone(true)
@@ -541,8 +544,18 @@ ResetToggle.MouseButton1Click:Connect(function()
     end
 end)
 
+ModeToggle.MouseButton1Click:Connect(function()
+    if CONFIG.FOLLOW_MODE == "instant" then
+        CONFIG.FOLLOW_MODE = "tween"
+    else
+        CONFIG.FOLLOW_MODE = "instant"
+    end
+    paintMode(ModeToggle, CONFIG.FOLLOW_MODE)
+    UpdateStatus()
+end)
+
 CloseButton.MouseButton1Click:Connect(function()
-    StopBackstab()
+    Follow.stop()
     removeSafeZone(true)
     if HealthConnection then HealthConnection:Disconnect() end
     if DeathConnection then DeathConnection:Disconnect() end
@@ -559,7 +572,7 @@ end))
 table.insert(CleanupConnections, Players.PlayerRemoving:Connect(function(player)
     if SelectedTarget == player then
         SelectedTarget = nil
-        if BackstabActive then StopBackstab() end
+        if FollowActive then Follow.stop() end
     end
     task.wait(0.1)
     RefreshPlayerList()
@@ -567,19 +580,19 @@ table.insert(CleanupConnections, Players.PlayerRemoving:Connect(function(player)
 end))
 
 CharacterConnection = Player.CharacterAdded:Connect(function(character)
-    WeldAttach.detach()
+    if ActiveTween then ActiveTween:Cancel() ActiveTween = nil end
     PreviousAutoRotate = nil
     if SafePlatform then removeSafeZone(false) end
     monitorHealth(character)
-    if BackstabActive then
+    if FollowActive then
         local hum = character:WaitForChild("Humanoid", 10)
         if hum then
             PreviousAutoRotate = hum.AutoRotate
             hum.AutoRotate = false
         end
         task.defer(function()
-            if BackstabActive and SelectedTarget and isAlive(SelectedTarget) then
-                WeldAttach.attach()
+            if FollowActive and SelectedTarget and isAlive(SelectedTarget) then
+                Follow.tick()
             end
         end)
     end
@@ -589,4 +602,4 @@ if Player.Character then task.defer(monitorHealth, Player.Character) end
 
 RefreshPlayerList()
 UpdateStatus()
-Message("Script Hizolon Privat SS+ (WELD)", "Loaded successfully!", 3)
+Message("HIZOLON FOLLOW", "Loaded successfully!", 3)
