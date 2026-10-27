@@ -29,7 +29,8 @@ screenGui.Parent = playerGui
 local function makePlate(index)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.fromOffset(W, H)
-    frame.Position = UDim2.fromOffset(X, Y + (index - 1) * (H + SP))
+    frame.AnchorPoint = Vector2.new(1, 0)
+    frame.Position = UDim2.new(1, -X, 0, Y + (index - 1) * (H + SP))
     frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     frame.BackgroundTransparency = 0.5
     frame.BorderSizePixel = 0
@@ -57,6 +58,35 @@ local pingLabel = makePlate(1)
 local fpsLabel = makePlate(2)
 local timeLabel = makePlate(3)
 local playersLabel = makePlate(4)
+
+local creditFrame = Instance.new("Frame")
+creditFrame.Size = UDim2.fromOffset(W, H)
+creditFrame.AnchorPoint = Vector2.new(1, 0)
+creditFrame.Position = UDim2.new(1, -X, 0, Y + 4 * (H + SP))
+creditFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+creditFrame.BackgroundTransparency = 0.5
+creditFrame.BorderSizePixel = 0
+creditFrame.Parent = screenGui
+
+local creditCorner = Instance.new("UICorner")
+creditCorner.CornerRadius = UDim.new(0, 6)
+creditCorner.Parent = creditFrame
+
+local creditStroke = Instance.new("UIStroke")
+creditStroke.Color = Color3.fromRGB(255, 255, 255)
+creditStroke.Thickness = 1.5
+creditStroke.Parent = creditFrame
+
+local creditLabel = Instance.new("TextLabel")
+creditLabel.Size = UDim2.fromScale(1, 1)
+creditLabel.BackgroundTransparency = 1
+creditLabel.Text = "By: flarnux"
+creditLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+creditLabel.TextSize = 12
+creditLabel.Font = Enum.Font.SourceSansBold
+creditLabel.TextXAlignment = Enum.TextXAlignment.Center
+creditLabel.TextYAlignment = Enum.TextYAlignment.Center
+creditLabel.Parent = creditFrame
 
 local startTime = tick()
 local fpsFrames = 0
