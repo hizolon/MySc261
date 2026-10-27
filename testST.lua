@@ -852,7 +852,7 @@ local function buildLockOverlay()
     lockTitle.Size = UDim2.new(1, -14, 0, 20)
     lockTitle.Position = UDim2.new(0, 7, 0, 16)
     lockTitle.BackgroundTransparency = 1
-    lockTitle.Text = "KEY REQUIRED"
+    lockTitle.Text = "ВВЕДИТЕ КЛЮЧ ДЛЯ ЗАПУСКА"
     lockTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
     lockTitle.Font = Enum.Font.SourceSansBold
     lockTitle.TextSize = 14
@@ -865,7 +865,7 @@ local function buildLockOverlay()
     KeyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     KeyInput.BorderSizePixel = 0
     KeyInput.Text = ""
-    KeyInput.PlaceholderText = "Enter key..."
+    KeyInput.PlaceholderText = "Введите ключ..."
     KeyInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
     KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
     KeyInput.Font = Enum.Font.SourceSans
@@ -883,7 +883,7 @@ local function buildLockOverlay()
     UnlockButton.Position = UDim2.new(0, 7, 0, 88)
     UnlockButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
     UnlockButton.BorderSizePixel = 0
-    UnlockButton.Text = "UNLOCK"
+    UnlockButton.Text = "ПОДТВЕРДИТЬ"
     UnlockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     UnlockButton.Font = Enum.Font.SourceSansBold
     UnlockButton.TextSize = 13
@@ -908,7 +908,7 @@ local function buildLockOverlay()
     UnlockButton.MouseButton1Click:Connect(function()
         if KeyInput.Text == "ABC" then
             Unlocked = true
-            KeyStatus.Text = "Unlocked!"
+            KeyStatus.Text = "Скрипт разблокирован! ;3"
             KeyStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
             KeyInput.Visible = false
             UnlockButton.Visible = false
@@ -918,7 +918,7 @@ local function buildLockOverlay()
             UpdateStatus()
             Message("Наш приватный дискорд сервер :3", "тест ссылка", 5)
         else
-            KeyStatus.Text = "Wrong key!"
+            KeyStatus.Text = "Неверный ключ!"
             KeyStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
         end
     end)
