@@ -611,10 +611,10 @@ function UpdateStatus()
         StatusLabel.Text = "Backstabbing: " .. SelectedTarget.Name
         StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     elseif SelectedTarget then
-        StatusLabel.Text = "Target: " .. SelectedTarget.Name
+        StatusLabel.Text = "Пизда этому: " .. SelectedTarget.Name
         StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     else
-        StatusLabel.Text = "Select target to backstab"
+        StatusLabel.Text = "Выбери долбаёба для секса >:3"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 end
