@@ -1,605 +1,365 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local Stats = game:GetService("Stats")
 local StarterGui = game:GetService("StarterGui")
 local CoreGui = game:GetService("CoreGui")
-local Player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
 local CONFIG = {
-    BEHIND_STUDS = 3,
-    HEIGHT_OFFSET = 0,
-    TWEEN_TIME = 0.08,
-    EMERGENCY_HP = 30,
-    SAFE_ZONE = false,
-    AUTO_RESET = false,
-    RESET_THRESHOLD = 0.30,
-    SAFE_DEPTH = 80,
-    SAFE_HEIGHT = 130,
-    FOLLOW_MODE = "instant",
+    BEHIND_STUDS   = 2.5,       -- насколько позади цели (studs)
+    HEIGHT_OFFSET  = 0,         -- смещение по высоте
+    RESPONSIVENESS = 200,       -- жёсткость AlignPosition (больше = жёстче)
+    MAX_FORCE      = 1000000,   -- макс. сила привязки
+    MAX_TORQUE     = 1000000,   -- макс. момент для поворота
+    ATTACH_RANGE   = 500,       -- если цель дальше — перепривязка
 }
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ScriptHizolonFollow"
+ScreenGui.Name = "TSB_Attach"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 210, 0, 286)
-MainFrame.Position = UDim2.new(0.5, -105, 0.5, -143)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Size = UDim2.fromOffset(220, 320)
+MainFrame.Position = UDim2.new(0.5, -110, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
-local MainFrameStroke = Instance.new("UIStroke")
-MainFrameStroke.Color = Color3.fromRGB(255, 80, 80)
-MainFrameStroke.Thickness = 1.2
-MainFrameStroke.Parent = MainFrame
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(255, 80, 80)
+stroke.Thickness = 1.2
+stroke.Parent = MainFrame
 
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 21)
-TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 24)
+title.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+title.BorderSizePixel = 0
+title.Text = "TSB ATTACH  |  HIZOLON"
+title.TextColor3 = Color3.fromRGB(255, 80, 80)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 12
+title.Parent = MainFrame
 
-local TitleBarCorner = Instance.new("UICorner")
-TitleBarCorner.CornerRadius = UDim.new(0, 4)
-TitleBarCorner.Parent = TitleBar
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.fromOffset(24, 24)
+closeBtn.Position = UDim2.new(1, -24, 0, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 12
+closeBtn.Parent = MainFrame
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -48, 1, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "HIZOLON FOLLOW (TWEEN / INSTANT)"
-Title.TextColor3 = Color3.fromRGB(255, 80, 80)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 11
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Position = UDim2.new(0, 7, 0, 0)
-Title.Parent = TitleBar
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -14, 0, 20)
+status.Position = UDim2.fromOffset(7, 30)
+status.BackgroundTransparency = 1
+status.Text = "Выбери цель"
+status.TextColor3 = Color3.fromRGB(200, 200, 200)
+status.Font = Enum.Font.SourceSans
+status.TextSize = 12
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = MainFrame
 
-local CloseButton = Instance.new("TextButton")
-CloseButton.Position = UDim2.new(1, -21, 0, 0)
-CloseButton.Size = UDim2.new(0, 21, 0, 21)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-CloseButton.BorderSizePixel = 0
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.TextSize = 11
-CloseButton.Parent = TitleBar
+local listFrame = Instance.new("Frame")
+listFrame.Size = UDim2.new(1, -14, 0, 180)
+listFrame.Position = UDim2.fromOffset(7, 54)
+listFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+listFrame.BorderSizePixel = 0
+listFrame.Parent = MainFrame
 
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 4)
-CloseCorner.Parent = CloseButton
+local listCorner = Instance.new("UICorner")
+listCorner.CornerRadius = UDim.new(0, 4)
+listCorner.Parent = listFrame
 
-local MinimizeButton = Instance.new("TextButton")
-MinimizeButton.Name = "Minimize"
-MinimizeButton.Position = UDim2.new(1, -42, 0, 0)
-MinimizeButton.Size = UDim2.fromOffset(21, 21)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-MinimizeButton.BorderSizePixel = 0
-MinimizeButton.Text = "-"
-MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
-MinimizeButton.Font = Enum.Font.SourceSansBold
-MinimizeButton.TextSize = 15
-MinimizeButton.Parent = TitleBar
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -8, 1, -8)
+scroll.Position = UDim2.fromOffset(4, 4)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4
+scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 80, 80)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.Parent = listFrame
 
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 4)
-MinCorner.Parent = MinimizeButton
+local startBtn = Instance.new("TextButton")
+startBtn.Size = UDim2.new(0.5, -10, 0, 30)
+startBtn.Position = UDim2.fromOffset(7, 244)
+startBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+startBtn.BorderSizePixel = 0
+startBtn.Text = "START"
+startBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+startBtn.Font = Enum.Font.SourceSansBold
+startBtn.TextSize = 13
+startBtn.Parent = MainFrame
 
-local minimized = false
-MinimizeButton.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 286)
-    MinimizeButton.Text = minimized and "+" or "-"
-    for _, child in ipairs(MainFrame:GetChildren()) do
-        if child:IsA("GuiObject") and child ~= TitleBar then
-            child.Visible = not minimized
-        end
-    end
-end)
-
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Position = UDim2.new(0, 7, 0, 28)
-StatusLabel.Size = UDim2.new(1, -14, 0, 18)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Select target to follow"
-StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-StatusLabel.Font = Enum.Font.SourceSans
-StatusLabel.TextSize = 11
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.Parent = MainFrame
-
-local SelectionFrame = Instance.new("Frame")
-SelectionFrame.Position = UDim2.new(0, 7, 0, 49)
-SelectionFrame.Size = UDim2.new(1, -14, 0, 140)
-SelectionFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-SelectionFrame.BorderSizePixel = 0
-SelectionFrame.Parent = MainFrame
-
-local SelectionCorner = Instance.new("UICorner")
-SelectionCorner.CornerRadius = UDim.new(0, 4)
-SelectionCorner.Parent = SelectionFrame
-
-local PlayerScrollFrame = Instance.new("ScrollingFrame")
-PlayerScrollFrame.Position = UDim2.new(0, 4, 0, 4)
-PlayerScrollFrame.Size = UDim2.new(1, -8, 1, -8)
-PlayerScrollFrame.BackgroundTransparency = 1
-PlayerScrollFrame.BorderSizePixel = 0
-PlayerScrollFrame.ScrollBarThickness = 4
-PlayerScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 80, 80)
-PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-PlayerScrollFrame.Parent = SelectionFrame
-
-local StartButton = Instance.new("TextButton")
-StartButton.Position = UDim2.new(0, 7, 0, 196)
-StartButton.Size = UDim2.new(0.5, -10, 0, 28)
-StartButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-StartButton.BorderSizePixel = 0
-StartButton.Text = "START"
-StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-StartButton.Font = Enum.Font.SourceSansBold
-StartButton.TextSize = 12
-StartButton.Parent = MainFrame
-
-local StartCorner = Instance.new("UICorner")
-StartCorner.CornerRadius = UDim.new(0, 4)
-StartCorner.Parent = StartButton
-
-local StopButton = Instance.new("TextButton")
-StopButton.Position = UDim2.new(0.5, 3, 0, 196)
-StopButton.Size = UDim2.new(0.5, -10, 0, 28)
-StopButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-StopButton.BorderSizePixel = 0
-StopButton.Text = "STOP"
-StopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-StopButton.Font = Enum.Font.SourceSansBold
-StopButton.TextSize = 12
-StopButton.Parent = MainFrame
-
-local StopCorner = Instance.new("UICorner")
-StopCorner.CornerRadius = UDim.new(0, 4)
-StopCorner.Parent = StopButton
-
-local function makeToggle(name, x, width)
-    local button = Instance.new("TextButton")
-    button.Name = name:gsub(" ", "")
-    button.Position = UDim2.new(0, x, 0, 231)
-    button.Size = UDim2.new(0, width, 0, 21)
-    button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    button.BorderSizePixel = 0
-    button.TextColor3 = Color3.fromRGB(255, 80, 80)
-    button.Font = Enum.Font.SourceSansBold
-    button.TextSize = 10
-    button.Parent = MainFrame
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
-    corner.Parent = button
-    return button
-end
-
-local SafeToggle = makeToggle("SAVE ZONA", 7, 94)
-local ResetToggle = makeToggle("AUTO RESET", 108, 95)
-local ModeToggle = makeToggle("MODE: INSTANT", 7, 196)
-ModeToggle.Position = UDim2.new(0, 7, 0, 258)
-
-local function paintToggle(button, title, enabled)
-    button.Text = title .. (enabled and ": ON" or ": OFF")
-    button.TextColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 80, 80)
-end
-
-paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
-paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
-
-local function paintMode(button, mode)
-    button.Text = "MODE: " .. mode:upper()
-    button.TextColor3 = mode == "instant" and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(0, 180, 255)
-end
-
-paintMode(ModeToggle, CONFIG.FOLLOW_MODE)
+local stopBtn = Instance.new("TextButton")
+stopBtn.Size = UDim2.new(0.5, -10, 0, 30)
+stopBtn.Position = UDim2.new(0.5, 3, 0, 244)
+stopBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+stopBtn.BorderSizePixel = 0
+stopBtn.Text = "STOP"
+stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopBtn.Font = Enum.Font.SourceSansBold
+stopBtn.TextSize = 13
+stopBtn.Parent = MainFrame
 
 local SelectedTarget = nil
 local PlayerButtons = {}
-local FollowActive = false
-local PositionConnection = nil
-local HealthConnection = nil
-local SafePlatform = nil
-local SafeReturn = nil
-local SafeMode = nil
+local AttachActive = false
+local AlignPos = nil
+local AlignOri = nil
+local MyAttachment = nil
+local TargetAttachment = nil
+local HeartbeatConn = nil
+local PreviousPlatformStand = nil
 local PreviousAutoRotate = nil
-local CharacterConnection = nil
-local CleanupConnections = {}
-local DeathConnection = nil
-local ResetInProgress = false
-local ActiveTween = nil
-local CurrentGoal = nil
 
-local function isAlive(plr)
-    if not plr or not plr.Character then return false end
-    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-    return hum and hum.Health > 0
+local function getChar(plr)
+    if not plr then return nil end
+    return plr.Character
 end
 
 local function getHRP(plr)
-    if not plr or not plr.Character then return nil end
-    return plr.Character:FindFirstChild("HumanoidRootPart")
+    local char = getChar(plr)
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart")
 end
 
-local function removeSafeZone(restorePosition)
-    if restorePosition and SafeReturn then
-        local hrp = getHRP(Player)
-        if hrp then
-            hrp.CFrame = SafeReturn
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
-    end
-    if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
-    SafeReturn = nil
-    SafeMode = nil
+local function isAlive(plr)
+    local char = getChar(plr)
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
 end
 
-local function createSafeZone(mode)
-    local hrp = getHRP(Player)
-    if not hrp then return false end
-    if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
-    SafeReturn = SafeReturn or hrp.CFrame
-    SafeMode = mode or "above"
-    local y = SafeMode == "below" and -CONFIG.SAFE_DEPTH or CONFIG.SAFE_HEIGHT
-    local destination = Vector3.new(hrp.Position.X, y, hrp.Position.Z)
-    local platform = Instance.new("Part")
-    platform.Name = "HizolonLocalSafeZone"
-    platform.Size = Vector3.new(28, 2, 28)
-    platform.Anchored = true
-    platform.CanCollide = true
-    platform.CanTouch = false
-    platform.CanQuery = false
-    platform.CastShadow = false
-    platform.Material = Enum.Material.SmoothPlastic
-    platform.Color = Color3.fromRGB(0, 0, 0)
-    platform.Transparency = SafeMode == "below" and 1 or 0.65
-    platform.CFrame = CFrame.new(destination)
-    platform.Parent = workspace
-    SafePlatform = platform
-    hrp.CFrame = CFrame.new(destination + Vector3.new(0, 5, 0))
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    return true
-end
-
-local StopFollow
-
-local function emergencyRetreat()
-    if ResetInProgress then return end
-    local char = Player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp or hum.Health <= 0 then return end
-    ResetInProgress = true
-    local y = math.min(-CONFIG.SAFE_DEPTH, workspace.FallenPartsDestroyHeight - 15)
-    hrp.CFrame = CFrame.new(hrp.Position.X, y, hrp.Position.Z)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    StatusLabel.Text = "AUTO RESET: LOW HP"
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 180, 40)
-    hum.Health = 0
-end
-
-local function monitorHealth(character)
-    if HealthConnection then HealthConnection:Disconnect(); HealthConnection = nil end
-    if DeathConnection then DeathConnection:Disconnect(); DeathConnection = nil end
-    ResetInProgress = false
-    local hum = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 10)
-    if not hum then return end
-    local function checkHealth(health)
-        if CONFIG.AUTO_RESET and not ResetInProgress and health > 0
-            and hum.MaxHealth > 0 and health / hum.MaxHealth <= CONFIG.RESET_THRESHOLD then
-            emergencyRetreat()
-        end
-    end
-    HealthConnection = hum.HealthChanged:Connect(checkHealth)
-    DeathConnection = hum.Died:Connect(function()
-    end)
-    checkHealth(hum.Health)
-end
-
-local Follow = {}
-
-local function computeGoal()
-    if not SelectedTarget or not isAlive(SelectedTarget) then return nil end
-    local targetHRP = getHRP(SelectedTarget)
-    if not targetHRP then return nil end
-    local targetCF = targetHRP.CFrame
-    local behindPos = targetCF.Position - targetCF.LookVector * CONFIG.BEHIND_STUDS
-    behindPos = behindPos + Vector3.new(0, CONFIG.HEIGHT_OFFSET, 0)
-    local facePos = Vector3.new(targetCF.Position.X, behindPos.Y, targetCF.Position.Z)
-    return CFrame.lookAt(behindPos, facePos)
-end
-
-function Follow.instant()
-    local myHRP = getHRP(Player)
-    if not myHRP then return end
-    local goal = computeGoal()
-    if not goal then return end
-    myHRP.CFrame = goal
-    myHRP.AssemblyLinearVelocity = Vector3.zero
-    myHRP.AssemblyAngularVelocity = Vector3.zero
-end
-
-function Follow.tween()
-    local myHRP = getHRP(Player)
-    if not myHRP then return end
-    local goal = computeGoal()
-    if not goal then return end
-
-    if ActiveTween then
-        ActiveTween:Cancel()
-        ActiveTween = nil
-    end
-
-    if not CurrentGoal then
-        CurrentGoal = myHRP.CFrame
-    end
-
-    local tweenInfo = TweenInfo.new(
-        CONFIG.TWEEN_TIME,
-        Enum.EasingStyle.Linear,
-        Enum.EasingDirection.Out
-    )
-
-    ActiveTween = TweenService:Create(myHRP, tweenInfo, { CFrame = goal })
-    ActiveTween:Play()
-end
-
-function Follow.tick()
-    if CONFIG.FOLLOW_MODE == "instant" then
-        Follow.instant()
-    else
-        Follow.tween()
-    end
-end
-
-function Follow.start()
-    if FollowActive then return end
-    if not SelectedTarget or not isAlive(SelectedTarget) then
-        StatusLabel.Text = "No target selected!"
-        task.wait(1)
-        UpdateStatus()
-        return
-    end
-    FollowActive = true
-    local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-    if myHum then
-        PreviousAutoRotate = myHum.AutoRotate
-        myHum.AutoRotate = false
-    end
-    UpdateStatus()
-    local modeName = CONFIG.FOLLOW_MODE == "instant" and "Instant" or "Tween"
-    Message("HIZOLON FOLLOW", modeName .. " follow: " .. SelectedTarget.Name, 2)
-
-    Follow.tick()
-
-    PositionConnection = RunService.RenderStepped:Connect(function()
-        if not FollowActive then return end
-        if not SelectedTarget or not isAlive(SelectedTarget) then
-            Follow.stop()
-            return
-        end
-        Follow.tick()
-    end)
-end
-
-function Follow.stop()
-    if not FollowActive then return end
-    FollowActive = false
-    if PositionConnection then PositionConnection:Disconnect() PositionConnection = nil end
-    if ActiveTween then ActiveTween:Cancel() ActiveTween = nil end
-    CurrentGoal = nil
-    local myHum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-    if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate end
-    PreviousAutoRotate = nil
-    UpdateStatus()
-    Message("HIZOLON FOLLOW", "Follow stopped", 2)
-end
-
-StopFollow = Follow.stop
-
-function UpdateStatus()
-    if FollowActive then
-        if SelectedTarget then
-            StatusLabel.Text = "FOLLOWING: " .. SelectedTarget.Name .. " (" .. CONFIG.FOLLOW_MODE .. ")"
-            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-        else
-            StatusLabel.Text = "No target selected"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        end
-    else
-        if SelectedTarget then
-            StatusLabel.Text = "Target: " .. SelectedTarget.Name
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        else
-            StatusLabel.Text = "Select target to follow"
-            StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        end
-    end
-end
-
-local function RefreshPlayerList()
-    for _, child in pairs(PlayerScrollFrame:GetChildren()) do
-        child:Destroy()
-    end
-    PlayerButtons = {}
-    local PlayerList = Players:GetPlayers()
-    table.sort(PlayerList, function(a, b) return a.Name:lower() < b.Name:lower() end)
-    local yPosition = 4
-    for _, player in ipairs(PlayerList) do
-        if player ~= Player then
-            local PlayerEntry = Instance.new("Frame")
-            PlayerEntry.Size = UDim2.new(1, -7, 0, 21)
-            PlayerEntry.Position = UDim2.new(0, 4, 0, yPosition)
-            PlayerEntry.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            PlayerEntry.BorderSizePixel = 0
-            PlayerEntry.Parent = PlayerScrollFrame
-            local EntryCorner = Instance.new("UICorner")
-            EntryCorner.CornerRadius = UDim.new(0, 4)
-            EntryCorner.Parent = PlayerEntry
-            local Checkbox = Instance.new("TextButton")
-            Checkbox.Size = UDim2.new(0, 17, 0, 17)
-            Checkbox.Position = UDim2.new(0, 2, 0.5, -8)
-            Checkbox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-            Checkbox.BorderSizePixel = 0
-            Checkbox.Text = ""
-            Checkbox.Parent = PlayerEntry
-            local CheckCorner = Instance.new("UICorner")
-            CheckCorner.CornerRadius = UDim.new(0, 3)
-            CheckCorner.Parent = Checkbox
-            local Checkmark = Instance.new("TextLabel")
-            Checkmark.Size = UDim2.new(1, 0, 1, 0)
-            Checkmark.BackgroundTransparency = 1
-            Checkmark.Text = "✓"
-            Checkmark.TextColor3 = Color3.fromRGB(0, 255, 0)
-            Checkmark.TextSize = 12
-            Checkmark.Font = Enum.Font.SourceSansBold
-            Checkmark.Visible = (SelectedTarget == player)
-            Checkmark.Parent = Checkbox
-            local NameLabel = Instance.new("TextLabel")
-            NameLabel.Size = UDim2.new(1, -25, 1, 0)
-            NameLabel.Position = UDim2.new(0, 21, 0, 0)
-            NameLabel.BackgroundTransparency = 1
-            NameLabel.Text = player.Name
-            NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            NameLabel.TextSize = 11
-            NameLabel.Font = Enum.Font.SourceSans
-            NameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            NameLabel.Parent = PlayerEntry
-            local ClickArea = Instance.new("TextButton")
-            ClickArea.Size = UDim2.new(1, 0, 1, 0)
-            ClickArea.BackgroundTransparency = 1
-            ClickArea.Text = ""
-            ClickArea.ZIndex = 2
-            ClickArea.Parent = PlayerEntry
-            ClickArea.MouseButton1Click:Connect(function()
-                if SelectedTarget == player then
-                    SelectedTarget = nil
-                    Checkmark.Visible = false
-                else
-                    SelectedTarget = player
-                    for _, data in pairs(PlayerButtons) do
-                        data.Checkmark.Visible = false
-                    end
-                    Checkmark.Visible = true
-                end
-                UpdateStatus()
-            end)
-            PlayerButtons[player.Name] = {
-                Entry = PlayerEntry,
-                Checkmark = Checkmark
-            }
-            yPosition = yPosition + 25
-        end
-    end
-    PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yPosition + 4)
-end
-
-local function Message(Title, Text, Time)
+local function notify(text, dur)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = Title,
-            Text = Text,
-            Duration = Time or 5
+            Title = "TSB Attach",
+            Text = text,
+            Duration = dur or 2,
         })
     end)
 end
 
-StartButton.MouseButton1Click:Connect(function()
-    Follow.start()
-end)
-
-StopButton.MouseButton1Click:Connect(function()
-    Follow.stop()
-end)
-
-SafeToggle.MouseButton1Click:Connect(function()
-    CONFIG.SAFE_ZONE = not CONFIG.SAFE_ZONE
-    if CONFIG.SAFE_ZONE then
-        if FollowActive then Follow.stop() end
-        createSafeZone("above")
-    else
-        removeSafeZone(true)
+local function ensureAttachment(part, name)
+    local att = part:FindFirstChild(name)
+    if not att then
+        att = Instance.new("Attachment")
+        att.Name = name
+        att.Parent = part
     end
-    paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
-end)
+    return att
+end
 
-ResetToggle.MouseButton1Click:Connect(function()
-    CONFIG.AUTO_RESET = not CONFIG.AUTO_RESET
-    paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
-    if CONFIG.AUTO_RESET then
-        local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Health > 0 and hum.MaxHealth > 0 and hum.Health / hum.MaxHealth < CONFIG.RESET_THRESHOLD then
-            emergencyRetreat()
+local function destroyAttach()
+    if AlignPos then AlignPos:Destroy(); AlignPos = nil end
+    if AlignOri then AlignOri:Destroy(); AlignOri = nil end
+
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if PreviousPlatformStand ~= nil then
+            hum.PlatformStand = PreviousPlatformStand
+        else
+            hum.PlatformStand = false
+        end
+        if PreviousAutoRotate ~= nil then
+            hum.AutoRotate = PreviousAutoRotate
         end
     end
-end)
+    PreviousPlatformStand = nil
+    PreviousAutoRotate = nil
+    MyAttachment = nil
+    TargetAttachment = nil
+end
 
-ModeToggle.MouseButton1Click:Connect(function()
-    if CONFIG.FOLLOW_MODE == "instant" then
-        CONFIG.FOLLOW_MODE = "tween"
-    else
-        CONFIG.FOLLOW_MODE = "instant"
+local function applyAttach()
+    if not SelectedTarget or not isAlive(SelectedTarget) then return false end
+
+    local myHRP = getHRP(LocalPlayer)
+    local tgtHRP = getHRP(SelectedTarget)
+    if not myHRP or not tgtHRP then return false end
+
+    local myChar = LocalPlayer.Character
+    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    if not myHum or myHum.Health <= 0 then return false end
+
+    destroyAttach()
+
+    PreviousPlatformStand = myHum.PlatformStand
+    PreviousAutoRotate = myHum.AutoRotate
+
+    myHum.PlatformStand = true
+    myHum.AutoRotate = false
+
+    MyAttachment = ensureAttachment(myHRP, "TSB_MyAtt")
+    TargetAttachment = ensureAttachment(tgtHRP, "TSB_TgtAtt")
+
+    AlignPos = Instance.new("AlignPosition")
+    AlignPos.Name = "TSB_AlignPos"
+    AlignPos.Attachment0 = MyAttachment
+    AlignPos.Attachment1 = TargetAttachment
+    AlignPos.MaxForce = CONFIG.MAX_FORCE
+    AlignPos.Responsiveness = CONFIG.RESPONSIVENESS
+    AlignPos.RigidityEnabled = true
+    AlignPos.ApplyAtCenterOfMass = false
+    AlignPos.Position = Vector3.new(0, CONFIG.HEIGHT_OFFSET, CONFIG.BEHIND_STUDS)
+    AlignPos.Parent = myHRP
+
+    AlignOri = Instance.new("AlignOrientation")
+    AlignOri.Name = "TSB_AlignOri"
+    AlignOri.Attachment0 = MyAttachment
+    AlignOri.Attachment1 = TargetAttachment
+    AlignOri.MaxTorque = CONFIG.MAX_TORQUE
+    AlignOri.Responsiveness = CONFIG.RESPONSIVENESS
+    AlignOri.RigidityEnabled = true
+    AlignOri.Parent = myHRP
+
+    return true
+end
+
+local function startAttach()
+    if AttachActive then return end
+    if not SelectedTarget then
+        status.Text = "Сначала выбери цель!"
+        status.TextColor3 = Color3.fromRGB(255, 120, 120)
+        task.wait(1)
+        status.Text = "Выбери цель"
+        status.TextColor3 = Color3.fromRGB(200, 200, 200)
+        return
     end
-    paintMode(ModeToggle, CONFIG.FOLLOW_MODE)
-    UpdateStatus()
-end)
+    if not isAlive(SelectedTarget) then
+        status.Text = "Цель мертва"
+        status.TextColor3 = Color3.fromRGB(255, 120, 120)
+        return
+    end
 
-CloseButton.MouseButton1Click:Connect(function()
-    Follow.stop()
-    removeSafeZone(true)
-    if HealthConnection then HealthConnection:Disconnect() end
-    if DeathConnection then DeathConnection:Disconnect() end
-    if CharacterConnection then CharacterConnection:Disconnect() end
-    for _, conn in ipairs(CleanupConnections) do conn:Disconnect() end
+    if not applyAttach() then
+        status.Text = "Не удалось привязаться"
+        return
+    end
+
+    AttachActive = true
+    status.Text = "ATTACHED → " .. SelectedTarget.Name
+    status.TextColor3 = Color3.fromRGB(0, 255, 120)
+    notify("Attached to " .. SelectedTarget.Name, 2)
+
+    HeartbeatConn = RunService.Heartbeat:Connect(function()
+        if not AttachActive then return end
+
+        if not SelectedTarget or not isAlive(SelectedTarget) then
+            status.Text = "Цель потеряна — остановка"
+            status.TextColor3 = Color3.fromRGB(255, 120, 120)
+            AttachActive = false
+            if HeartbeatConn then HeartbeatConn:Disconnect(); HeartbeatConn = nil end
+            destroyAttach()
+            return
+        end
+
+        local myHRP = getHRP(LocalPlayer)
+        local tgtHRP = getHRP(SelectedTarget)
+        if not myHRP or not tgtHRP then return end
+
+        if not AlignPos or not AlignPos.Parent then
+            applyAttach()
+            return
+        end
+
+        local dist = (myHRP.Position - tgtHRP.Position).Magnitude
+        if dist > CONFIG.ATTACH_RANGE then
+            applyAttach()
+        end
+    end)
+end
+
+local function stopAttach()
+    if not AttachActive then return end
+    AttachActive = false
+    if HeartbeatConn then HeartbeatConn:Disconnect(); HeartbeatConn = nil end
+    destroyAttach()
+    status.Text = "Target: " .. (SelectedTarget and SelectedTarget.Name or "—")
+    status.TextColor3 = Color3.fromRGB(200, 200, 200)
+    notify("Attach stopped", 2)
+end
+
+local function refreshList()
+    for _, c in ipairs(scroll:GetChildren()) do
+        if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
+    end
+    PlayerButtons = {}
+
+    local players = Players:GetPlayers()
+    table.sort(players, function(a, b)
+        return a.Name:lower() < b.Name:lower()
+    end)
+
+    local y = 2
+    for _, plr in ipairs(players) do
+        if plr ~= LocalPlayer then
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -4, 0, 22)
+            btn.Position = UDim2.fromOffset(2, y)
+            btn.BackgroundColor3 = (SelectedTarget == plr)
+                and Color3.fromRGB(0, 120, 0)
+                or Color3.fromRGB(60, 60, 60)
+            btn.BorderSizePixel = 0
+            btn.Text = plr.Name
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.Font = Enum.Font.SourceSans
+            btn.TextSize = 12
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.Parent = scroll
+            btn.MouseButton1Click:Connect(function()
+                SelectedTarget = plr
+                status.Text = "Target: " .. plr.Name
+                status.TextColor3 = Color3.fromRGB(200, 200, 200)
+                refreshList()
+            end)
+            PlayerButtons[plr] = btn
+            y = y + 24
+        end
+    end
+    scroll.CanvasSize = UDim2.new(0, 0, 0, y + 2)
+end
+
+startBtn.MouseButton1Click:Connect(startAttach)
+stopBtn.MouseButton1Click:Connect(stopAttach)
+
+closeBtn.MouseButton1Click:Connect(function()
+    stopAttach()
     ScreenGui:Destroy()
 end)
 
-table.insert(CleanupConnections, Players.PlayerAdded:Connect(function()
+Players.PlayerAdded:Connect(function()
     task.wait(0.5)
-    RefreshPlayerList()
-end))
+    refreshList()
+end)
 
-table.insert(CleanupConnections, Players.PlayerRemoving:Connect(function(player)
-    if SelectedTarget == player then
+Players.PlayerRemoving:Connect(function(plr)
+    if SelectedTarget == plr then
         SelectedTarget = nil
-        if FollowActive then Follow.stop() end
+        stopAttach()
     end
     task.wait(0.1)
-    RefreshPlayerList()
-    UpdateStatus()
-end))
+    refreshList()
+end)
 
-CharacterConnection = Player.CharacterAdded:Connect(function(character)
-    if ActiveTween then ActiveTween:Cancel() ActiveTween = nil end
-    PreviousAutoRotate = nil
-    if SafePlatform then removeSafeZone(false) end
-    monitorHealth(character)
-    if FollowActive then
-        local hum = character:WaitForChild("Humanoid", 10)
-        if hum then
-            PreviousAutoRotate = hum.AutoRotate
-            hum.AutoRotate = false
-        end
+LocalPlayer.CharacterAdded:Connect(function()
+    if AttachActive then
         task.defer(function()
-            if FollowActive and SelectedTarget and isAlive(SelectedTarget) then
-                Follow.tick()
+            if AttachActive and SelectedTarget and isAlive(SelectedTarget) then
+                applyAttach()
             end
         end)
     end
 end)
 
-if Player.Character then task.defer(monitorHealth, Player.Character) end
-
-RefreshPlayerList()
-UpdateStatus()
-Message("HIZOLON FOLLOW", "Loaded successfully!", 3)
+refreshList()
+status.Text = "Выбери цель"
+notify("TSB Attach loaded", 3)
