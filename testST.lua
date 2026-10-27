@@ -1,8 +1,3 @@
--- HIZOLON PRIVAT SS+ v5.4 | LocalScript
--- FPS BOOST (1:1 RIP#6666, без уведомлений) + ESP + Backstab
--- ============================================================
--- SERVICES
--- ============================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
@@ -12,9 +7,6 @@ local Lighting = game:GetService("Lighting")
 local MaterialService = game:GetService("MaterialService")
 local Player = Players.LocalPlayer
 
--- ============================================================
--- CONFIG
--- ============================================================
 local CONFIG = {
     BEHIND_STUDS = 3,
     HEIGHT_OFFSET = 0,
@@ -31,14 +23,11 @@ local CONFIG = {
     SAFE_ZONE = false,
 }
 
--- ============================================================
--- RIP#6666 FPS BOOST GLOBALS (1:1, без уведомлений)
--- ============================================================
 if not _G.Ignore then
     _G.Ignore = {}
 end
-_G.SendNotifications = false   -- принудительно выключено (без уведомлений)
-_G.ConsoleLogs = false         -- без консольных спамов
+_G.SendNotifications = false
+_G.ConsoleLogs = false
 _G.LoadedWait = 1
 
 if not _G.Settings then
@@ -91,7 +80,6 @@ local function DescendantOfIgnore(Inst)
     return false
 end
 
--- ===== 1:1 логика CheckIfBad от RIP#6666 =====
 local function CheckIfBad(Inst)
     if not Inst or not Inst.Parent then return end
     if not Inst:IsDescendantOf(Players) and (_G.Settings.Players["Ignore Others"] and not PartOfCharacter(Inst)
@@ -184,7 +172,6 @@ local function CheckIfBad(Inst)
     end
 end
 
--- ===== 1:1 глобальные функции (coroutine.wrap(pcall), как у него) =====
 local function applyLowWaterGraphics()
     if (_G.Settings["Low Water Graphics"] or (_G.Settings.Other and _G.Settings.Other["Low Water Graphics"])) then
         local terrain = workspace:FindFirstChildOfClass("Terrain")
@@ -250,29 +237,22 @@ local function applyClearNilInstances()
     end
 end
 
--- ===== 1:1 запуск: coroutine.wrap(pcall) + полный проход Descendants =====
 local FpsBoostRunning = false
 local FpsAddedConnection = nil
 
 local function startFpsBoost()
     if FpsBoostRunning then return end
     FpsBoostRunning = true
-
-    -- Глобальные настройки — как у него, каждый в своём coroutine.wrap(pcall)
     coroutine.wrap(pcall)(applyLowWaterGraphics)
     coroutine.wrap(pcall)(applyNoShadows)
     coroutine.wrap(pcall)(applyLowRendering)
     coroutine.wrap(pcall)(applyResetMaterials)
     coroutine.wrap(pcall)(applyFpsCap)
     coroutine.wrap(pcall)(applyClearNilInstances)
-
-    -- Полный проход по всем Descendants — как у него (1:1)
     local Descendants = game:GetDescendants()
     for _, v in pairs(Descendants) do
         CheckIfBad(v)
     end
-
-    -- Подписка на новые объекты — как у него (1:1)
     FpsAddedConnection = game.DescendantAdded:Connect(function(value)
         wait(_G.LoadedWait or 1)
         CheckIfBad(value)
@@ -283,23 +263,14 @@ local function stopFpsBoost()
     if not FpsBoostRunning then return end
     FpsBoostRunning = false
     if FpsAddedConnection then FpsAddedConnection:Disconnect(); FpsAddedConnection = nil end
-    -- У RIP#6666 OFF-режима нет — его скрипт одноразовый.
-    -- Здесь мы просто останавливаем подписку на новые объекты.
-    -- Глобальные настройки и Destroy-нутые объекты не откатываются (как у него).
 end
 
--- ============================================================
--- GUI PARENT
--- ============================================================
 local function getGuiParent()
     local ok, parent = pcall(function() return CoreGui end)
     if ok and parent then return parent end
     return Player:WaitForChild("PlayerGui")
 end
 
--- ============================================================
--- GUI
--- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ScriptHizolonPrivatSSPlus"
 ScreenGui.ResetOnSpawn = false
@@ -332,7 +303,7 @@ TitleBarCorner.Parent = TitleBar
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -26, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "SCRIPT HIZOLON PRIVAT SS+"
+Title.Text = "Prototype by Flarnux V43.2"
 Title.TextColor3 = Color3.fromRGB(255, 80, 80)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -464,9 +435,6 @@ paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
 paintToggle(FpsBoostToggle, "FPS BOOST", CONFIG.FPS_BOOST)
 paintToggle(EspToggle, "ESP", CONFIG.ESP)
 
--- ============================================================
--- STATE
--- ============================================================
 local SelectedTarget = nil
 local PlayerButtons = {}
 local BackstabActive = false
@@ -485,9 +453,6 @@ local EspGui = nil
 local EspConnection = nil
 local EspEntries = {}
 
--- ============================================================
--- UTILITIES
--- ============================================================
 local function getPing()
     local ok, ping = pcall(function()
         return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
@@ -504,9 +469,6 @@ local function getHRP(plr)
     return plr.Character:FindFirstChild("HumanoidRootPart")
 end
 
--- ============================================================
--- SAFE ZONE / AUTO RESET
--- ============================================================
 local function removeSafeZone(restorePosition)
     if restorePosition and SafeReturn then
         local hrp = getHRP(Player)
@@ -591,9 +553,6 @@ local function monitorHealth(character)
     checkHealth(hum.Health)
 end
 
--- ============================================================
--- POSITIONER
--- ============================================================
 local Positioner = {}
 function Positioner.getBehindCFrame(targetHRP)
     if not targetHRP then return nil end
@@ -638,9 +597,6 @@ function Positioner.teleport()
     myHRP.AssemblyAngularVelocity = Vector3.zero
 end
 
--- ============================================================
--- STATUS
--- ============================================================
 function UpdateStatus()
     if BackstabActive and SelectedTarget then
         StatusLabel.Text = "Backstabbing: " .. SelectedTarget.Name
@@ -654,9 +610,6 @@ function UpdateStatus()
     end
 end
 
--- ============================================================
--- PLAYER LIST
--- ============================================================
 local function RefreshPlayerList()
     for _, child in pairs(PlayerScrollFrame:GetChildren()) do child:Destroy() end
     PlayerButtons = {}
@@ -736,18 +689,12 @@ local function RefreshPlayerList()
     PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, y + 4)
 end
 
--- ============================================================
--- NOTIFICATION (только HIZOLON)
--- ============================================================
 local function Message(title, text, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", { Title = title, Text = text, Duration = duration or 5 })
     end)
 end
 
--- ============================================================
--- ESP
--- ============================================================
 local function createEspGui()
     if EspGui then return end
     local gui = Instance.new("ScreenGui")
@@ -845,9 +792,6 @@ local function stopEsp()
     destroyEspGui()
 end
 
--- ============================================================
--- START / STOP BACKSTAB
--- ============================================================
 local function StartBackstab()
     if BackstabActive then return end
     if not SelectedTarget then
@@ -863,7 +807,7 @@ local function StartBackstab()
         myHum.AutoRotate = false
     end
     UpdateStatus()
-    Message("Script Hizolon Privat SS+", "Backstabbing " .. SelectedTarget.Name, 2)
+    Message("Prototype by Flarnux V43.2", "Backstabbing " .. SelectedTarget.Name, 2)
     if CONFIG.SAFE_ZONE then
         removeSafeZone(false)
         CONFIG.SAFE_ZONE = false
@@ -883,12 +827,9 @@ local function StopBackstab()
     if myHum and PreviousAutoRotate ~= nil then myHum.AutoRotate = PreviousAutoRotate end
     PreviousAutoRotate = nil
     UpdateStatus()
-    Message("Script Hizolon Privat SS+", "Backstab stopped", 2)
+    Message("Prototype by Flarnux V43.2", "Backstab stopped", 2)
 end
 
--- ============================================================
--- BUTTON CONNECTIONS
--- ============================================================
 StartButton.MouseButton1Click:Connect(StartBackstab)
 StopButton.MouseButton1Click:Connect(StopBackstab)
 
@@ -935,9 +876,6 @@ EspToggle.MouseButton1Click:Connect(function()
     paintToggle(EspToggle, "ESP", CONFIG.ESP)
 end)
 
--- ============================================================
--- PLAYER JOIN / LEAVE
--- ============================================================
 table.insert(CleanupConnections, Players.PlayerAdded:Connect(function(plr)
     task.wait(0.5)
     RefreshPlayerList()
@@ -957,9 +895,6 @@ table.insert(CleanupConnections, Players.PlayerRemoving:Connect(function(plr)
     UpdateStatus()
 end))
 
--- ============================================================
--- RESPAWN
--- ============================================================
 CharacterConnection = Player.CharacterAdded:Connect(function(character)
     PreviousAutoRotate = nil
     if SafePlatform then removeSafeZone(false) end
@@ -972,9 +907,6 @@ end)
 
 if Player.Character then task.defer(monitorHealth, Player.Character) end
 
--- ============================================================
--- INIT
--- ============================================================
 RefreshPlayerList()
 UpdateStatus()
-Message("Script Hizolon Privat SS+", "Loaded successfully!", 3)
+Message("Наш приватный дискорд сервер :3", "тест ссылка", 5)
