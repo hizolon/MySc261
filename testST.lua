@@ -822,4 +822,9 @@ end)
 
 if Player.Character then task.defer(monitorHealth, Player.Character) end
 
--- ===========================================================
+-- ============================================================
+-- INIT
+-- ============================================================
+RefreshPlayerList()
+UpdateStatus()
+Message("Script Hizolon Privat SS+", "Loaded successfully!", 3)
