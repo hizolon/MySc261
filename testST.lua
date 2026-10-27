@@ -1,152 +1,189 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
+-- sosite
+-- Эквivalent of the deobfuscated invZ script
+-- Реально это демо-набор: factorial, fibonacci, факторизация,
+-- XOR-строка, base64-подобное кодирование и таблица-контейнер.
 
-local LocalPlayer = Players.LocalPlayer
-if not LocalPlayer then
-    warn("[StatsGUI] Нужен LocalScript или Executor!")
-    return
-end
+local bit32 = bit32 or bit
+local bxor  = bit32.bxor
+local band  = bit32.band
+local rshift = bit32.rshift
+local lshift = bit32.lshift
+local btest = bit32.btest
 
-local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-if not playerGui then
-    warn("[StatsGUI] PlayerGui не найден")
-    return
-end
-
-local old = playerGui:FindFirstChild("ServerStatsGUI")
-if old then old:Destroy() end
-
-local W, H, SP, X, Y = 64, 24, 4, 10, 10
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ServerStatsGUI"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true
-screenGui.DisplayOrder = 999
-screenGui.Parent = playerGui
-
-local function makePlate(index)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(W, H)
-    frame.AnchorPoint = Vector2.new(1, 0)
-    frame.Position = UDim2.new(1, -X, 0, Y + (index - 1) * (H + SP))
-    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    frame.BackgroundTransparency = 0.5
-    frame.BorderSizePixel = 0
-    frame.Parent = screenGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = frame
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-    label.Text = "..."
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 12
-    label.Font = Enum.Font.SourceSansBold
-    label.TextXAlignment = Enum.TextXAlignment.Center
-    label.TextYAlignment = Enum.TextYAlignment.Center
-    label.Parent = frame
-
-    return label
-end
-
-local pingLabel = makePlate(1)
-local fpsLabel = makePlate(2)
-local timeLabel = makePlate(3)
-local playersLabel = makePlate(4)
-
-local creditFrame = Instance.new("Frame")
-creditFrame.Size = UDim2.fromOffset(W, H)
-creditFrame.AnchorPoint = Vector2.new(1, 0)
-creditFrame.Position = UDim2.new(1, -X, 0, Y + 4 * (H + SP))
-creditFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-creditFrame.BackgroundTransparency = 0.5
-creditFrame.BorderSizePixel = 0
-creditFrame.Parent = screenGui
-
-local creditCorner = Instance.new("UICorner")
-creditCorner.CornerRadius = UDim.new(0, 6)
-creditCorner.Parent = creditFrame
-
-local creditStroke = Instance.new("UIStroke")
-creditStroke.Color = Color3.fromRGB(255, 255, 255)
-creditStroke.Thickness = 1.5
-creditStroke.Parent = creditFrame
-
-local creditLabel = Instance.new("TextLabel")
-creditLabel.Size = UDim2.fromScale(1, 1)
-creditLabel.BackgroundTransparency = 1
-creditLabel.Text = "By: flarnux"
-creditLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-creditLabel.TextSize = 12
-creditLabel.Font = Enum.Font.SourceSansBold
-creditLabel.TextXAlignment = Enum.TextXAlignment.Center
-creditLabel.TextYAlignment = Enum.TextYAlignment.Center
-creditLabel.Parent = creditFrame
-
-local startTime = tick()
-local fpsFrames = 0
-local fpsLast = tick()
-local fpsValue = 0
-local accum = 0
-
-RunService.RenderStepped:Connect(function()
-    fpsFrames = fpsFrames + 1
-    local now = tick()
-    if now - fpsLast >= 1 then
-        fpsValue = math.floor(fpsFrames / (now - fpsLast) + 0.5)
-        fpsFrames = 0
-        fpsLast = now
+-- ===== 1. XOR-шифрование строк =====
+local function xor_string(s, key)
+    local out = {}
+    for i = 1, #s do
+        local a = string.byte(s, i)
+        local b = string.byte(key, (i - 1) % #key + 1)
+        out[i] = string.char(bxor(a, b) % 256)
     end
-end)
+    return table.concat(out)
+end
 
-RunService.Heartbeat:Connect(function(dt)
-    accum = accum + dt
-    local elapsed = math.floor(tick() - startTime)
-    local h = math.floor(elapsed / 3600)
-    local m = math.floor((elapsed % 3600) / 60)
-    local s = elapsed % 60
-    timeLabel.Text = string.format("%d:%02d:%02d", h, m, s)
-
-    if accum >= 0.25 then
-        accum = 0
-
-        local ping = 0
-        local ok, val = pcall(function()
-            return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-        end)
-        if ok and tonumber(val) then
-            ping = tonumber(val)
+-- ===== 2. Кодирование в "base64-подобную" строку =====
+local ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_`{|}~"
+local function encode_baseN(data)
+    -- Превращаем байты в битовую строку, затем режем по 6 бит
+    local bits = {}
+    for i = 1, #data do
+        local byte = string.byte(data, i)
+        for b = 7, 0, -1 do
+            bits[#bits + 1] = band(rshift(byte, b), 1)
         end
-
-        local country
-        if ping < 40 then
-            country = "LOCAL"
-        elseif ping < 80 then
-            country = "EU"
-        elseif ping < 140 then
-            country = "US"
-        elseif ping < 220 then
-            country = "ASIA"
-        else
-            country = "FAR"
-        end
-        pingLabel.Text = string.format("%d ms (%s)", math.floor(ping + 0.5), country)
-
-        fpsLabel.Text = string.format("%d FPS", fpsValue)
-
-        local cur = #Players:GetPlayers()
-        local max = 0
-        local okMax, mv = pcall(function()
-            return Players.MaxPlayers
-        end)
-        if okMax and type(mv) == "number" and mv > 0 then
-            max = mv
-        end
-        playersLabel.Text = max > 0 and string.format("%d/%d plrs", cur, max) or string.format("%d plrs", cur)
     end
-end)
+    local out = {}
+    for i = 1, #bits, 6 do
+        local v = 0
+        for j = 0, 5 do
+            v = lshift(v, 1) + (bits[i + j] or 0)
+        end
+        out[#out + 1] = ALPHABET:sub(v + 1, v + 1)
+    end
+    return table.concat(out)
+end
+
+local function decode_baseN(str)
+    local bits = {}
+    for i = 1, #str do
+        local idx = ALPHABET:find(str:sub(i, i), 1, true) - 1
+        for b = 5, 0, -1 do
+            bits[#bits + 1] = band(rshift(idx, b), 1)
+        end
+    end
+    local out = {}
+    for i = 1, #bits, 8 do
+        local v = 0
+        for j = 0, 7 do
+            v = lshift(v, 1) + (bits[i + j] or 0)
+        end
+        out[#out + 1] = string.char(v)
+    end
+    return table.concat(out)
+end
+
+-- ===== 3. Факториал =====
+local function factorial(n)
+    if n < 0 then return nil end
+    local result = 1
+    for i = 2, n do
+        result = result * i
+    end
+    return result
+end
+
+-- Рекурсивный вариант (использовался в обфускаторе)
+local function factorial_rec(n)
+    if n <= 1 then return 1 end
+    return n * factorial_rec(n - 1)
+end
+
+-- ===== 4. Числа Фибоначчи =====
+local function fibonacci(n)
+    if n < 0 then return nil end
+    if n == 0 then return 0 end
+    if n == 1 then return 1 end
+    local a, b = 0, 1
+    for _ = 2, n do
+        a, b = b, a + b
+    end
+    return b
+end
+
+-- Рекурсивный вариант
+local function fibonacci_rec(n)
+    if n <= 1 then return n end
+    return fibonacci_rec(n - 1) + fibonacci_rec(n - 2)
+end
+
+-- ===== 5. Проверка простоты / факторизация =====
+local function is_prime(n)
+    if n < 2 then return false end
+    if n % 2 == 0 then return n == 2 end
+    local i = 3
+    while i * i <= n do
+        if n % i == 0 then return false end
+        i = i + 2
+    end
+    return true
+end
+
+local function factorize(n)
+    local factors = {}
+    local d = 2
+    while d * d <= n do
+        while n % d == 0 do
+            factors[#factors + 1] = d
+            n = n / d
+        end
+        d = d + 1
+    end
+    if n > 1 then factors[#factors + 1] = n end
+    return factors
+end
+
+-- ===== 6. Сумма / произведение таблицы =====
+local function sum(t)
+    local s = 0
+    for _, v in ipairs(t) do s = s + v end
+    return s
+end
+
+local function product(t)
+    local p = 1
+    for _, v in ipairs(t) do p = p * v end
+    return p
+end
+
+-- ===== 7. "Контейнер" — таблица с полями, как в оригинале =====
+local function make_container(e, f, g, i, o, m)
+    return {
+        [0x2d07] = e,   -- поле e
+        [0x44cd] = f,   -- поле f
+        [0xe648] = g,   -- поле g
+        [0x6841] = i,   -- поле i
+        [0xbb5]  = o,   -- поле o
+        [0x8da3] = m,   -- поле m
+        [0x996e] = 0,
+        [0x2ac9] = 0,
+    }
+end
+
+-- ===== 8. Демонстрация (то, что реально делает скрипт при запуске) =====
+local function main()
+    print("=== invZ demo ===")
+
+    -- Факториалы
+    for n = 0, 10 do
+        print(string.format("factorial(%d) = %d", n, factorial(n)))
+    end
+
+    -- Фибоначчи
+    for n = 0, 15 do
+        print(string.format("fib(%d) = %d", n, fibonacci(n)))
+    end
+
+    -- Простые числа до 50
+    local primes = {}
+    for n = 2, 50 do
+        if is_prime(n) then primes[#primes + 1] = n end
+    end
+    print("primes <= 50: " .. table.concat(primes, ", "))
+
+    -- Факторизация
+    local num = 360
+    local fac = factorize(num)
+    print(string.format("factorize(%d) = %s", num, table.concat(fac, " * ")))
+    print(string.format("  check: product = %d, sum = %d", product(fac), sum(fac)))
+
+    -- XOR-строка
+    local secret = xor_string("Hello, Lua!", "key")
+    print("xor('Hello, Lua!', 'key') = " .. encode_baseN(secret))
+
+    -- Контейнер
+    local c = make_container(1, 2, 3, 4, 5, 6)
+    print("container.e = " .. c[0x2d07])
+    print("container.m = " .. c[0x8da3])
+end
+
+main()
