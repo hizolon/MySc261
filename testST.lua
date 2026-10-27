@@ -1,5 +1,5 @@
--- HIZOLON PRIVAT SS+ v5.3 | LocalScript
--- FPS BOOST (full, no notifications) + ESP + Backstab positioner
+-- HIZOLON PRIVAT SS+ v5.4 | LocalScript
+-- FPS BOOST (1:1 RIP#6666, без уведомлений) + ESP + Backstab
 -- ============================================================
 -- SERVICES
 -- ============================================================
@@ -29,44 +29,31 @@ local CONFIG = {
     FPS_BOOST = false,
     ESP = false,
     SAFE_ZONE = false,
+}
 
-    -- FPS BOOST настройки (адаптировано из RIP#6666, без уведомлений)
-    FPS_SETTINGS = {
+-- ============================================================
+-- RIP#6666 FPS BOOST GLOBALS (1:1, без уведомлений)
+-- ============================================================
+if not _G.Ignore then
+    _G.Ignore = {}
+end
+_G.SendNotifications = false   -- принудительно выключено (без уведомлений)
+_G.ConsoleLogs = false         -- без консольных спамов
+_G.LoadedWait = 1
+
+if not _G.Settings then
+    _G.Settings = {
         Players = {
             ["Ignore Me"] = true,
             ["Ignore Others"] = true,
             ["Ignore Tools"] = true,
         },
-        Meshes = {
-            NoMesh = false,
-            NoTexture = false,
-            Destroy = false,
-        },
-        Images = {
-            Invisible = true,
-            Destroy = false,
-        },
-        Explosions = {
-            Smaller = true,
-            Invisible = false,
-            Destroy = false,
-        },
-        Particles = {
-            Invisible = true,
-            Destroy = false,
-        },
-        TextLabels = {
-            LowerQuality = false,
-            Invisible = false,
-            Destroy = false,
-        },
-        MeshParts = {
-            LowerQuality = true,
-            Invisible = false,
-            NoTexture = false,
-            NoMesh = false,
-            Destroy = false,
-        },
+        Meshes = { NoMesh = false, NoTexture = false, Destroy = false },
+        Images = { Invisible = true, Destroy = false },
+        Explosions = { Smaller = true, Invisible = false, Destroy = false },
+        Particles = { Invisible = true, Destroy = false },
+        TextLabels = { LowerQuality = false, Invisible = false, Destroy = false },
+        MeshParts = { LowerQuality = true, Invisible = false, NoTexture = false, NoMesh = false, Destroy = false },
         Other = {
             ["FPS Cap"] = true,
             ["No Camera Effects"] = true,
@@ -80,10 +67,226 @@ local CONFIG = {
             ["Lower Quality MeshParts"] = true,
             ClearNilInstances = false,
         },
-    },
-    FPS_IGNORE = {}, -- объекты, которые не трогать: {workspace.Map, workspace.Map2}
-    FPS_LOADED_WAIT = 1,
-}
+    }
+end
+
+local ME = Players.LocalPlayer
+local CanBeEnabled = { "ParticleEmitter", "Trail", "Smoke", "Fire", "Sparkles" }
+
+local function PartOfCharacter(Inst)
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= ME and v.Character and Inst:IsDescendantOf(v.Character) then
+            return true
+        end
+    end
+    return false
+end
+
+local function DescendantOfIgnore(Inst)
+    for _, v in pairs(_G.Ignore) do
+        if typeof(v) == "Instance" and Inst:IsDescendantOf(v) then
+            return true
+        end
+    end
+    return false
+end
+
+-- ===== 1:1 логика CheckIfBad от RIP#6666 =====
+local function CheckIfBad(Inst)
+    if not Inst or not Inst.Parent then return end
+    if not Inst:IsDescendantOf(Players) and (_G.Settings.Players["Ignore Others"] and not PartOfCharacter(Inst)
+    or not _G.Settings.Players["Ignore Others"]) and (_G.Settings.Players["Ignore Me"] and ME.Character and not Inst:IsDescendantOf(ME.Character)
+    or not _G.Settings.Players["Ignore Me"]) and (_G.Settings.Players["Ignore Tools"] and not Inst:IsA("BackpackItem") and not Inst:FindFirstAncestorWhichIsA("BackpackItem")
+    or not _G.Settings.Players["Ignore Tools"]) and (_G.Ignore and not table.find(_G.Ignore, Inst) and not DescendantOfIgnore(Inst)
+    or (not _G.Ignore or type(_G.Ignore) ~= "table" or #_G.Ignore <= 0)) then
+        if Inst:IsA("DataModelMesh") then
+            if Inst:IsA("SpecialMesh") then
+                if _G.Settings.Meshes.NoMesh then Inst.MeshId = "" end
+                if _G.Settings.Meshes.NoTexture then Inst.TextureId = "" end
+            end
+            if _G.Settings.Meshes.Destroy or _G.Settings["No Meshes"] then Inst:Destroy() end
+        elseif Inst:IsA("FaceInstance") then
+            if _G.Settings.Images.Invisible then
+                Inst.Transparency = 1
+                Inst.Shiny = 1
+            end
+            if _G.Settings.Images.LowDetail then Inst.Shiny = 1 end
+            if _G.Settings.Images.Destroy then Inst:Destroy() end
+        elseif Inst:IsA("ShirtGraphic") then
+            if _G.Settings.Images.Invisible then Inst.Graphic = "" end
+            if _G.Settings.Images.Destroy then Inst:Destroy() end
+        elseif table.find(CanBeEnabled, Inst.ClassName) then
+            if _G.Settings["Invisible Particles"] or _G.Settings["No Particles"] or (_G.Settings.Other and _G.Settings.Other["Invisible Particles"]) or (_G.Settings.Particles and _G.Settings.Particles.Invisible) then
+                Inst.Enabled = false
+            end
+            if (_G.Settings.Other and _G.Settings.Other["No Particles"]) or (_G.Settings.Particles and _G.Settings.Particles.Destroy) then
+                Inst:Destroy()
+            end
+        elseif Inst:IsA("PostEffect") and (_G.Settings["No Camera Effects"] or (_G.Settings.Other and _G.Settings.Other["No Camera Effects"])) then
+            Inst.Enabled = false
+        elseif Inst:IsA("Explosion") then
+            if _G.Settings["Smaller Explosions"] or (_G.Settings.Other and _G.Settings.Other["Smaller Explosions"]) or (_G.Settings.Explosions and _G.Settings.Explosions.Smaller) then
+                Inst.BlastPressure = 1
+                Inst.BlastRadius = 1
+            end
+            if _G.Settings["Invisible Explosions"] or (_G.Settings.Other and _G.Settings.Other["Invisible Explosions"]) or (_G.Settings.Explosions and _G.Settings.Explosions.Invisible) then
+                Inst.BlastPressure = 1
+                Inst.BlastRadius = 1
+                Inst.Visible = false
+            end
+            if _G.Settings["No Explosions"] or (_G.Settings.Other and _G.Settings.Other["No Explosions"]) or (_G.Settings.Explosions and _G.Settings.Explosions.Destroy) then
+                Inst:Destroy()
+            end
+        elseif Inst:IsA("Clothing") or Inst:IsA("SurfaceAppearance") or Inst:IsA("BaseWrap") then
+            if _G.Settings["No Clothes"] or (_G.Settings.Other and _G.Settings.Other["No Clothes"]) then
+                Inst:Destroy()
+            end
+        elseif Inst:IsA("BasePart") and not Inst:IsA("MeshPart") then
+            if _G.Settings["Low Quality Parts"] or (_G.Settings.Other and _G.Settings.Other["Low Quality Parts"]) then
+                Inst.Material = Enum.Material.Plastic
+                Inst.Reflectance = 0
+            end
+        elseif Inst:IsA("TextLabel") and Inst:IsDescendantOf(workspace) then
+            if _G.Settings["Lower Quality TextLabels"] or (_G.Settings.Other and _G.Settings.Other["Lower Quality TextLabels"]) or (_G.Settings.TextLabels and _G.Settings.TextLabels.LowerQuality) then
+                Inst.Font = Enum.Font.SourceSans
+                Inst.TextScaled = false
+                Inst.RichText = false
+                Inst.TextSize = 14
+            end
+            if _G.Settings["Invisible TextLabels"] or (_G.Settings.Other and _G.Settings.Other["Invisible TextLabels"]) or (_G.Settings.TextLabels and _G.Settings.TextLabels.Invisible) then
+                Inst.Visible = false
+            end
+            if _G.Settings["No TextLabels"] or (_G.Settings.Other and _G.Settings.Other["No TextLabels"]) or (_G.Settings.TextLabels and _G.Settings.TextLabels.Destroy) then
+                Inst:Destroy()
+            end
+        elseif Inst:IsA("Model") then
+            if _G.Settings["Low Quality Models"] or (_G.Settings.Other and _G.Settings.Other["Low Quality Models"]) then
+                Inst.LevelOfDetail = 1
+            end
+        elseif Inst:IsA("MeshPart") then
+            if _G.Settings["Low Quality MeshParts"] or (_G.Settings.Other and _G.Settings.Other["Low Quality MeshParts"]) or (_G.Settings.MeshParts and _G.Settings.MeshParts.LowerQuality) then
+                Inst.RenderFidelity = 2
+                Inst.Reflectance = 0
+                Inst.Material = Enum.Material.Plastic
+            end
+            if _G.Settings["Invisible MeshParts"] or (_G.Settings.Other and _G.Settings.Other["Invisible MeshParts"]) or (_G.Settings.MeshParts and _G.Settings.MeshParts.Invisible) then
+                Inst.Transparency = 1
+                Inst.RenderFidelity = 2
+                Inst.Reflectance = 0
+                Inst.Material = Enum.Material.Plastic
+            end
+            if _G.Settings.MeshParts and _G.Settings.MeshParts.NoTexture then Inst.TextureID = "" end
+            if _G.Settings.MeshParts and _G.Settings.MeshParts.NoMesh then Inst.MeshId = "" end
+            if _G.Settings["No MeshParts"] or (_G.Settings.Other and _G.Settings.Other["No MeshParts"]) or (_G.Settings.MeshParts and _G.Settings.MeshParts.Destroy) then
+                Inst:Destroy()
+            end
+        end
+    end
+end
+
+-- ===== 1:1 глобальные функции (coroutine.wrap(pcall), как у него) =====
+local function applyLowWaterGraphics()
+    if (_G.Settings["Low Water Graphics"] or (_G.Settings.Other and _G.Settings.Other["Low Water Graphics"])) then
+        local terrain = workspace:FindFirstChildOfClass("Terrain")
+        if not terrain then
+            repeat task.wait() until workspace:FindFirstChildOfClass("Terrain")
+            terrain = workspace:FindFirstChildOfClass("Terrain")
+        end
+        terrain.WaterWaveSize = 0
+        terrain.WaterWaveSpeed = 0
+        terrain.WaterReflectance = 0
+        terrain.WaterTransparency = 0
+        if sethiddenproperty then
+            sethiddenproperty(terrain, "Decoration", false)
+        end
+    end
+end
+
+local function applyNoShadows()
+    if _G.Settings["No Shadows"] or (_G.Settings.Other and _G.Settings.Other["No Shadows"]) then
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.ShadowSoftness = 0
+        if sethiddenproperty then
+            sethiddenproperty(Lighting, "Technology", 2)
+        end
+    end
+end
+
+local function applyLowRendering()
+    if _G.Settings["Low Rendering"] or (_G.Settings.Other and _G.Settings.Other["Low Rendering"]) then
+        settings().Rendering.QualityLevel = 1
+        settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+    end
+end
+
+local function applyResetMaterials()
+    if _G.Settings["Reset Materials"] or (_G.Settings.Other and _G.Settings.Other["Reset Materials"]) then
+        for _, v in pairs(MaterialService:GetChildren()) do v:Destroy() end
+        MaterialService.Use2022Materials = false
+    end
+end
+
+local function applyFpsCap()
+    if _G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"]) then
+        if setfpscap then
+            local v = _G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])
+            if type(v) == "string" or type(v) == "number" then
+                setfpscap(tonumber(v))
+            elseif v == true then
+                setfpscap(1e6)
+            end
+        end
+    end
+end
+
+local function applyClearNilInstances()
+    if _G.Settings.Other["ClearNilInstances"] then
+        if getnilinstances then
+            for _, v in pairs(getnilinstances()) do
+                pcall(v.Destroy, v)
+            end
+        end
+    end
+end
+
+-- ===== 1:1 запуск: coroutine.wrap(pcall) + полный проход Descendants =====
+local FpsBoostRunning = false
+local FpsAddedConnection = nil
+
+local function startFpsBoost()
+    if FpsBoostRunning then return end
+    FpsBoostRunning = true
+
+    -- Глобальные настройки — как у него, каждый в своём coroutine.wrap(pcall)
+    coroutine.wrap(pcall)(applyLowWaterGraphics)
+    coroutine.wrap(pcall)(applyNoShadows)
+    coroutine.wrap(pcall)(applyLowRendering)
+    coroutine.wrap(pcall)(applyResetMaterials)
+    coroutine.wrap(pcall)(applyFpsCap)
+    coroutine.wrap(pcall)(applyClearNilInstances)
+
+    -- Полный проход по всем Descendants — как у него (1:1)
+    local Descendants = game:GetDescendants()
+    for _, v in pairs(Descendants) do
+        CheckIfBad(v)
+    end
+
+    -- Подписка на новые объекты — как у него (1:1)
+    FpsAddedConnection = game.DescendantAdded:Connect(function(value)
+        wait(_G.LoadedWait or 1)
+        CheckIfBad(value)
+    end)
+end
+
+local function stopFpsBoost()
+    if not FpsBoostRunning then return end
+    FpsBoostRunning = false
+    if FpsAddedConnection then FpsAddedConnection:Disconnect(); FpsAddedConnection = nil end
+    -- У RIP#6666 OFF-режима нет — его скрипт одноразовый.
+    -- Здесь мы просто останавливаем подписку на новые объекты.
+    -- Глобальные настройки и Destroy-нутые объекты не откатываются (как у него).
+end
 
 -- ============================================================
 -- GUI PARENT
@@ -278,9 +481,6 @@ local CharacterConnection = nil
 local CleanupConnections = {}
 local ResetInProgress = false
 
-local FpsBoostConnection = nil
-local FpsAddConnection = nil
-local FpsHidden = setmetatable({}, {__mode = "k"})
 local EspGui = nil
 local EspConnection = nil
 local EspEntries = {}
@@ -455,7 +655,7 @@ function UpdateStatus()
 end
 
 -- ============================================================
--- PLAYER LIST  (Никнейм (@Username))
+-- PLAYER LIST
 -- ============================================================
 local function RefreshPlayerList()
     for _, child in pairs(PlayerScrollFrame:GetChildren()) do child:Destroy() end
@@ -537,350 +737,12 @@ local function RefreshPlayerList()
 end
 
 -- ============================================================
--- NOTIFICATION (только HIZOLON — свои)
+-- NOTIFICATION (только HIZOLON)
 -- ============================================================
 local function Message(title, text, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", { Title = title, Text = text, Duration = duration or 5 })
     end)
-end
-
--- ============================================================
--- FPS BOOST (полный, без уведомлений)
--- ============================================================
-local FPS_CAN_BE_ENABLED = { "ParticleEmitter", "Trail", "Smoke", "Fire", "Sparkles" }
-local FPS_SET = CONFIG.FPS_SETTINGS
-
-local function isPartOfOtherCharacter(inst)
-    for _, v in ipairs(Players:GetPlayers()) do
-        if v ~= Player and v.Character and inst:IsDescendantOf(v.Character) then
-            return true
-        end
-    end
-    return false
-end
-
-local function isDescendantOfIgnore(inst)
-    for _, v in ipairs(CONFIG.FPS_IGNORE) do
-        if typeof(v) == "Instance" and inst:IsDescendantOf(v) then
-            return true
-        end
-    end
-    return false
-end
-
-local function remember(obj, kind, value)
-    if FpsHidden[obj] == nil then
-        FpsHidden[obj] = { kind = kind, value = value }
-    end
-end
-
-local function checkIfBad(inst)
-    if not inst or not inst.Parent then return end
-    if isDescendantOfIgnore(inst) then return end
-
-    -- Пропуск игроков / себя / инструментов
-    if FPS_SET.Players["Ignore Others"] and isPartOfOtherCharacter(inst) then return end
-    if FPS_SET.Players["Ignore Me"] and Player.Character and inst:IsDescendantOf(Player.Character) then return end
-    if FPS_SET.Players["Ignore Tools"] and (inst:IsA("BackpackItem") or inst:FindFirstAncestorWhichIsA("BackpackItem")) then return end
-    if inst:IsDescendantOf(Players) then return end
-
-    -- DataModelMesh
-    if inst:IsA("DataModelMesh") then
-        if inst:IsA("SpecialMesh") then
-            if FPS_SET.Meshes.NoMesh then
-                remember(inst, "meshId", inst.MeshId)
-                pcall(function() inst.MeshId = "" end)
-            end
-            if FPS_SET.Meshes.NoTexture then
-                remember(inst, "textureId", inst.TextureId)
-                pcall(function() inst.TextureId = "" end)
-            end
-        end
-        if FPS_SET.Meshes.Destroy then inst:Destroy() end
-        return
-    end
-
-    -- FaceInstance
-    if inst:IsA("FaceInstance") then
-        if FPS_SET.Images.Invisible then
-            remember(inst, "transparency", inst.Transparency)
-            remember(inst, "shiny", inst.Shiny)
-            pcall(function() inst.Transparency = 1; inst.Shiny = 1 end)
-        end
-        if FPS_SET.Images.Destroy then inst:Destroy() end
-        return
-    end
-
-    -- ShirtGraphic
-    if inst:IsA("ShirtGraphic") then
-        if FPS_SET.Images.Invisible then
-            remember(inst, "graphic", inst.Graphic)
-            pcall(function() inst.Graphic = "" end)
-        end
-        if FPS_SET.Images.Destroy then inst:Destroy() end
-        return
-    end
-
-    -- Particles / Trails / etc
-    if table.find(FPS_CAN_BE_ENABLED, inst.ClassName) then
-        if FPS_SET.Particles.Invisible then
-            remember(inst, "enabled", inst.Enabled)
-            pcall(function() inst.Enabled = false end)
-        end
-        if FPS_SET.Particles.Destroy then inst:Destroy() end
-        return
-    end
-
-    -- PostEffect
-    if inst:IsA("PostEffect") and FPS_SET.Other["No Camera Effects"] then
-        remember(inst, "enabled", inst.Enabled)
-        pcall(function() inst.Enabled = false end)
-        return
-    end
-
-    -- Explosion
-    if inst:IsA("Explosion") then
-        if FPS_SET.Explosions.Smaller or FPS_SET.Explosions.Invisible then
-            remember(inst, "blastPressure", inst.BlastPressure)
-            remember(inst, "blastRadius", inst.BlastRadius)
-            pcall(function() inst.BlastPressure = 1; inst.BlastRadius = 1 end)
-        end
-        if FPS_SET.Explosions.Invisible then
-            remember(inst, "visible", inst.Visible)
-            pcall(function() inst.Visible = false end)
-        end
-        if FPS_SET.Explosions.Destroy then inst:Destroy() end
-        return
-    end
-
-    -- Одежда / SurfaceAppearance / BaseWrap
-    if (inst:IsA("Clothing") or inst:IsA("SurfaceAppearance") or inst:IsA("BaseWrap")) and FPS_SET.Other["No Clothes"] then
-        inst:Destroy()
-        return
-    end
-
-    -- BasePart (не MeshPart)
-    if inst:IsA("BasePart") and not inst:IsA("MeshPart") then
-        if FPS_SET.Other["Low Quality Parts"] then
-            remember(inst, "material", inst.Material)
-            remember(inst, "reflectance", inst.Reflectance)
-            pcall(function() inst.Material = Enum.Material.Plastic; inst.Reflectance = 0 end)
-        end
-        return
-    end
-
-    -- TextLabel в workspace
-    if inst:IsA("TextLabel") and inst:IsDescendantOf(workspace) then
-        if FPS_SET.TextLabels.LowerQuality then
-            remember(inst, "font", inst.Font)
-            remember(inst, "textSize", inst.TextSize)
-            remember(inst, "textScaled", inst.TextScaled)
-            remember(inst, "richText", inst.RichText)
-            pcall(function()
-                inst.Font = Enum.Font.SourceSans
-                inst.TextScaled = false
-                inst.RichText = false
-                inst.TextSize = 14
-            end)
-        end
-        if FPS_SET.TextLabels.Invisible then
-            remember(inst, "visible", inst.Visible)
-            pcall(function() inst.Visible = false end)
-        end
-        if FPS_SET.TextLabels.Destroy then inst:Destroy() end
-        return
-    end
-
-    -- Model
-    if inst:IsA("Model") and FPS_SET.Other["Low Quality Models"] then
-        remember(inst, "lod", inst.LevelOfDetail)
-        pcall(function() inst.LevelOfDetail = 1 end)
-        return
-    end
-
-    -- MeshPart
-    if inst:IsA("MeshPart") then
-        if FPS_SET.MeshParts.LowerQuality or FPS_SET.Other["Lower Quality MeshParts"] then
-            remember(inst, "renderFidelity", inst.RenderFidelity)
-            remember(inst, "reflectance", inst.Reflectance)
-            remember(inst, "material", inst.Material)
-            pcall(function()
-                inst.RenderFidelity = Enum.RenderFidelity.Performance
-                inst.Reflectance = 0
-                inst.Material = Enum.Material.Plastic
-            end)
-        end
-        if FPS_SET.MeshParts.Invisible then
-            remember(inst, "transparency", inst.Transparency)
-            pcall(function() inst.Transparency = 1 end)
-        end
-        if FPS_SET.MeshParts.NoTexture then
-            remember(inst, "textureId", inst.TextureID)
-            pcall(function() inst.TextureID = "" end)
-        end
-        if FPS_SET.MeshParts.NoMesh then
-            remember(inst, "meshId", inst.MeshId)
-            pcall(function() inst.MeshId = "" end)
-        end
-        if FPS_SET.MeshParts.Destroy then inst:Destroy() end
-        return
-    end
-end
-
-local function sweepFpsBoost()
-    if not CONFIG.FPS_BOOST then return end
-    for _, obj in ipairs(game:GetDescendants()) do
-        pcall(checkIfBad, obj)
-    end
-end
-
-local function applyGlobalFpsSettings()
-    -- Low Water Graphics
-    if FPS_SET.Other["Low Water Graphics"] then
-        local terrain = workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            pcall(function()
-                terrain.WaterWaveSize = 0
-                terrain.WaterWaveSpeed = 0
-                terrain.WaterReflectance = 0
-                terrain.WaterTransparency = 0
-            end)
-            if sethiddenproperty then
-                pcall(sethiddenproperty, terrain, "Decoration", false)
-            end
-        end
-    end
-
-    -- No Shadows
-    if FPS_SET.Other["No Shadows"] then
-        pcall(function()
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 9e9
-            Lighting.ShadowSoftness = 0
-        end)
-        if sethiddenproperty then
-            pcall(sethiddenproperty, Lighting, "Technology", 2)
-        end
-    end
-
-    -- Low Rendering
-    if FPS_SET.Other["Low Rendering"] then
-        pcall(function()
-            settings().Rendering.QualityLevel = 1
-            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
-        end)
-    end
-
-    -- Reset Materials
-    if FPS_SET.Other["Reset Materials"] then
-        pcall(function()
-            for _, v in ipairs(MaterialService:GetChildren()) do v:Destroy() end
-            MaterialService.Use2022Materials = false
-        end)
-    end
-
-    -- FPS Cap
-    if FPS_SET.Other["FPS Cap"] then
-        if setfpscap then
-            pcall(setfpscap, 1e6)
-        end
-    end
-
-    -- ClearNilInstances
-    if FPS_SET.Other.ClearNilInstances and getnilinstances then
-        pcall(function()
-            for _, v in ipairs(getnilinstances()) do
-                pcall(v.Destroy, v)
-            end
-        end)
-    end
-end
-
-local function restoreGlobalFpsSettings()
-    -- Откат только того, что можно откатить
-    if FPS_SET.Other["Low Water Graphics"] then
-        local terrain = workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            pcall(function()
-                terrain.WaterWaveSize = 0.15
-                terrain.WaterWaveSpeed = 10
-                terrain.WaterReflectance = 0.1
-                terrain.WaterTransparency = 0.1
-            end)
-        end
-    end
-    if FPS_SET.Other["No Shadows"] then
-        pcall(function()
-            Lighting.GlobalShadows = true
-            Lighting.ShadowSoftness = 0.2
-        end)
-    end
-    if FPS_SET.Other["Low Rendering"] then
-        pcall(function()
-            settings().Rendering.QualityLevel = 21
-            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
-        end)
-    end
-    if FPS_SET.Other["FPS Cap"] and setfpscap then
-        pcall(setfpscap, 60)
-    end
-end
-
-local function startFpsBoost()
-    if FpsBoostConnection then return end
-    applyGlobalFpsSettings()
-    sweepFpsBoost()
-    FpsAddConnection = game.DescendantAdded:Connect(function(obj)
-        if not CONFIG.FPS_BOOST then return end
-        task.wait(CONFIG.FPS_LOADED_WAIT)
-        if CONFIG.FPS_BOOST then
-            pcall(checkIfBad, obj)
-        end
-    end)
-    local acc = 0
-    FpsBoostConnection = RunService.Heartbeat:Connect(function(dt)
-        if not CONFIG.FPS_BOOST then return end
-        acc = acc + dt
-        if acc >= 2 then
-            acc = 0
-            sweepFpsBoost()
-        end
-    end)
-end
-
-local function stopFpsBoost()
-    if FpsBoostConnection then FpsBoostConnection:Disconnect(); FpsBoostConnection = nil end
-    if FpsAddConnection then FpsAddConnection:Disconnect(); FpsAddConnection = nil end
-    -- Восстановление запомненных свойств
-    for obj, data in pairs(FpsHidden) do
-        if obj and obj.Parent then
-            pcall(function()
-                if data.kind == "transparency" then obj.Transparency = data.value
-                elseif data.kind == "enabled" then obj.Enabled = data.value
-                elseif data.kind == "material" then obj.Material = data.value
-                elseif data.kind == "reflectance" then obj.Reflectance = data.value
-                elseif data.kind == "renderFidelity" then obj.RenderFidelity = data.value
-                elseif data.kind == "lod" then obj.LevelOfDetail = data.value
-                elseif data.kind == "graphic" then obj.Graphic = data.value
-                elseif data.kind == "textureId" then
-                    if obj:IsA("MeshPart") then obj.TextureID = data.value
-                    else obj.TextureId = data.value end
-                elseif data.kind == "meshId" then obj.MeshId = data.value
-                elseif data.kind == "font" then obj.Font = data.value
-                elseif data.kind == "textSize" then obj.TextSize = data.value
-                elseif data.kind == "textScaled" then obj.TextScaled = data.value
-                elseif data.kind == "richText" then obj.RichText = data.value
-                elseif data.kind == "visible" then obj.Visible = data.value
-                elseif data.kind == "shiny" then obj.Shiny = data.value
-                elseif data.kind == "blastPressure" then obj.BlastPressure = data.value
-                elseif data.kind == "blastRadius" then obj.BlastRadius = data.value
-                end
-            end)
-        end
-        FpsHidden[obj] = nil
-    end
-    restoreGlobalFpsSettings()
 end
 
 -- ============================================================
