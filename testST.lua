@@ -333,7 +333,7 @@ MinimizeButton.MouseButton1Click:Connect(function()
     MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 286)
     MinimizeButton.Text = minimized and "+" or "-"
     for _, child in ipairs(MainFrame:GetChildren()) do
-        if child:IsA("GuiObject") and child ~= TitleBar then
+        if child:IsA("GuiObject") and child ~= TitleBar and child.Name ~= "LockOverlay" then
             child.Visible = not minimized
         end
     end
@@ -452,6 +452,12 @@ local ResetInProgress = false
 local EspGui = nil
 local EspConnection = nil
 local EspEntries = {}
+
+local Unlocked = false
+local LockOverlay = nil
+local KeyInput = nil
+local KeyStatus = nil
+local UnlockButton = nil
 
 local function getPing()
     local ok, ping = pcall(function()
@@ -793,6 +799,7 @@ local function stopEsp()
 end
 
 local function StartBackstab()
+    if not Unlocked then return end
     if BackstabActive then return end
     if not SelectedTarget then
         StatusLabel.Text = "No target selected!"
@@ -830,10 +837,98 @@ local function StopBackstab()
     Message("Prototype by Flarnux V43.2", "Backstab stopped", 2)
 end
 
+local function buildLockOverlay()
+    LockOverlay = Instance.new("Frame")
+    LockOverlay.Name = "LockOverlay"
+    LockOverlay.Size = UDim2.new(1, 0, 1, -21)
+    LockOverlay.Position = UDim2.new(0, 0, 0, 21)
+    LockOverlay.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    LockOverlay.BackgroundTransparency = 0.05
+    LockOverlay.BorderSizePixel = 0
+    LockOverlay.ZIndex = 10
+    LockOverlay.Parent = MainFrame
+
+    local lockTitle = Instance.new("TextLabel")
+    lockTitle.Size = UDim2.new(1, -14, 0, 20)
+    lockTitle.Position = UDim2.new(0, 7, 0, 16)
+    lockTitle.BackgroundTransparency = 1
+    lockTitle.Text = "KEY REQUIRED"
+    lockTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
+    lockTitle.Font = Enum.Font.SourceSansBold
+    lockTitle.TextSize = 14
+    lockTitle.ZIndex = 11
+    lockTitle.Parent = LockOverlay
+
+    KeyInput = Instance.new("TextBox")
+    KeyInput.Size = UDim2.new(1, -14, 0, 28)
+    KeyInput.Position = UDim2.new(0, 7, 0, 50)
+    KeyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    KeyInput.BorderSizePixel = 0
+    KeyInput.Text = ""
+    KeyInput.PlaceholderText = "Enter key..."
+    KeyInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeyInput.Font = Enum.Font.SourceSans
+    KeyInput.TextSize = 13
+    KeyInput.ClearTextOnFocus = false
+    KeyInput.ZIndex = 11
+    KeyInput.Parent = LockOverlay
+
+    local kc = Instance.new("UICorner")
+    kc.CornerRadius = UDim.new(0, 4)
+    kc.Parent = KeyInput
+
+    UnlockButton = Instance.new("TextButton")
+    UnlockButton.Size = UDim2.new(1, -14, 0, 30)
+    UnlockButton.Position = UDim2.new(0, 7, 0, 88)
+    UnlockButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+    UnlockButton.BorderSizePixel = 0
+    UnlockButton.Text = "UNLOCK"
+    UnlockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    UnlockButton.Font = Enum.Font.SourceSansBold
+    UnlockButton.TextSize = 13
+    UnlockButton.ZIndex = 11
+    UnlockButton.Parent = LockOverlay
+
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(0, 4)
+    bc.Parent = UnlockButton
+
+    KeyStatus = Instance.new("TextLabel")
+    KeyStatus.Size = UDim2.new(1, -14, 0, 18)
+    KeyStatus.Position = UDim2.new(0, 7, 0, 126)
+    KeyStatus.BackgroundTransparency = 1
+    KeyStatus.Text = "Enter key..."
+    KeyStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+    KeyStatus.Font = Enum.Font.SourceSans
+    KeyStatus.TextSize = 11
+    KeyStatus.ZIndex = 11
+    KeyStatus.Parent = LockOverlay
+
+    UnlockButton.MouseButton1Click:Connect(function()
+        if KeyInput.Text == "ABC" then
+            Unlocked = true
+            KeyStatus.Text = "Unlocked!"
+            KeyStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
+            KeyInput.Visible = false
+            UnlockButton.Visible = false
+            task.wait(0.4)
+            if LockOverlay then LockOverlay:Destroy(); LockOverlay = nil end
+            RefreshPlayerList()
+            UpdateStatus()
+            Message("Наш приватный дискорд сервер :3", "тест ссылка", 5)
+        else
+            KeyStatus.Text = "Wrong key!"
+            KeyStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end)
+end
+
 StartButton.MouseButton1Click:Connect(StartBackstab)
 StopButton.MouseButton1Click:Connect(StopBackstab)
 
 SafeToggle.MouseButton1Click:Connect(function()
+    if not Unlocked then return end
     CONFIG.SAFE_ZONE = not CONFIG.SAFE_ZONE
     if CONFIG.SAFE_ZONE then
         if BackstabActive then StopBackstab() end
@@ -845,6 +940,7 @@ SafeToggle.MouseButton1Click:Connect(function()
 end)
 
 ResetToggle.MouseButton1Click:Connect(function()
+    if not Unlocked then return end
     CONFIG.AUTO_RESET = not CONFIG.AUTO_RESET
     paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
     if CONFIG.AUTO_RESET then
@@ -857,6 +953,7 @@ ResetToggle.MouseButton1Click:Connect(function()
 end)
 
 FpsBoostToggle.MouseButton1Click:Connect(function()
+    if not Unlocked then return end
     CONFIG.FPS_BOOST = not CONFIG.FPS_BOOST
     if CONFIG.FPS_BOOST then
         startFpsBoost()
@@ -867,6 +964,7 @@ FpsBoostToggle.MouseButton1Click:Connect(function()
 end)
 
 EspToggle.MouseButton1Click:Connect(function()
+    if not Unlocked then return end
     CONFIG.ESP = not CONFIG.ESP
     if CONFIG.ESP then
         startEsp()
@@ -878,8 +976,10 @@ end)
 
 table.insert(CleanupConnections, Players.PlayerAdded:Connect(function(plr)
     task.wait(0.5)
-    RefreshPlayerList()
-    if CONFIG.ESP and EspGui and plr ~= Player then ensureEspEntry(plr) end
+    if Unlocked then
+        RefreshPlayerList()
+        if CONFIG.ESP and EspGui and plr ~= Player then ensureEspEntry(plr) end
+    end
 end))
 
 table.insert(CleanupConnections, Players.PlayerRemoving:Connect(function(plr)
@@ -891,22 +991,26 @@ table.insert(CleanupConnections, Players.PlayerRemoving:Connect(function(plr)
         EspEntries[plr] = nil
     end
     task.wait(0.1)
-    RefreshPlayerList()
-    UpdateStatus()
+    if Unlocked then
+        RefreshPlayerList()
+        UpdateStatus()
+    end
 end))
 
 CharacterConnection = Player.CharacterAdded:Connect(function(character)
     PreviousAutoRotate = nil
     if SafePlatform then removeSafeZone(false) end
-    monitorHealth(character)
-    if BackstabActive then
-        local hum = character:WaitForChild("Humanoid", 10)
-        if hum then PreviousAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
+    if Unlocked then
+        monitorHealth(character)
+        if BackstabActive then
+            local hum = character:WaitForChild("Humanoid", 10)
+            if hum then PreviousAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
+        end
     end
 end)
 
-if Player.Character then task.defer(monitorHealth, Player.Character) end
+if Player.Character then task.defer(function()
+    if Unlocked then monitorHealth(Player.Character) end
+end) end
 
-RefreshPlayerList()
-UpdateStatus()
-Message("Наш приватный дискорд сервер :3", "тест ссылка", 5)
+buildLockOverlay()
