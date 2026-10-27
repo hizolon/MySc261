@@ -10,7 +10,7 @@ local CONFIG = {
     RESPONSIVENESS = 1000,       -- жёсткость AlignPosition (больше = жёстче)
     MAX_FORCE      = 1000000,   -- макс. сила привязки
     MAX_TORQUE     = 1000000,   -- макс. момент для поворота
-    ATTACH_RANGE   = 500,       -- если цель дальше — перепривязка
+    ATTACH_RANGE   = 100,       -- если цель дальше — перепривязка
 }
 
 local ScreenGui = Instance.new("ScreenGui")
