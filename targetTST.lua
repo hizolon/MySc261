@@ -1,20 +1,23 @@
-local Players = game:GetService("Players")
+local Players = game.Players
 local lp = Players.LocalPlayer
-local targetName = "TargetName"
+local targetName = "TargetName"   -- точное имя цели
 local distance = 4
 
 task.spawn(function()
     while task.wait() do
-        local target = Players:FindFirstChild(targetName)
-        if not target then warn("цель не найдена:", targetName) continue end
-        local tChar, myChar = target.Character, lp.Character
-        if not (tChar and myChar) then warn("нет Character") continue end
-        local tRoot = tChar:FindFirstChild("HumanoidRootPart")
-        local myRoot = myChar:FindFirstChild("HumanoidRootPart")
-        if not (tRoot and myRoot) then warn("нет HumanoidRootPart") continue end
+        pcall(function()
+            local target = Players:FindFirstChild(targetName)
+                or workspace:FindFirstChild(targetName, true)
 
-        pcall(function() myRoot:SetNetworkOwner(lp) end)
+            local tChar = target and (target.Character or target)
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
 
-        myRoot.CFrame = tRoot.CFrame * CFrame.new(0, 0, distance)
+            local myChar = lp.Character
+            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+            if tRoot and myRoot then
+                myRoot.CFrame = tRoot.CFrame * CFrame.new(0, 0, distance)
+            end
+        end)
     end
 end)
