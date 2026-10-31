@@ -303,8 +303,8 @@ TitleBarCorner.Parent = TitleBar
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -26, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Prototype V43.2 | by: Flarnux | Gm: TSB"
-Title.TextColor3 = Color3.fromRGB(255, 80, 80)
+Title.Text = "ID:11685382324 | by: Flarnux | Gm: TSB"
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -1053,7 +1053,7 @@ local function buildLockOverlay()
     KeyStatus.Parent = LockOverlay
 
     UnlockButton.MouseButton1Click:Connect(function()
-        if Player.UserId == 11685382325 and KeyInput.Text == "ABC" then
+        if Player.UserId == 11685382324 and KeyInput.Text == "ABC" then
             Unlocked = true
             KeyStatus.Text = "Скрипт разблокирован! ;3"
             KeyStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
