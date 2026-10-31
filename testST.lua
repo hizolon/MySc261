@@ -286,7 +286,7 @@ MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local MainFrameStroke = Instance.new("UIStroke")
-MainFrameStroke.Color = Color3.fromRGB(255, 80, 80)
+MainFrameStroke.Color = Color3.fromRGB(255, 0, 0)
 MainFrameStroke.Thickness = 1.2
 MainFrameStroke.Parent = MainFrame
 
