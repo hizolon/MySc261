@@ -1045,7 +1045,7 @@ local function buildLockOverlay()
     KeyStatus.Size = UDim2.new(1, -14, 0, 18)
     KeyStatus.Position = UDim2.new(0, 7, 0, 126)
     KeyStatus.BackgroundTransparency = 1
-    KeyStatus.Text = "Enter key..."
+    KeyStatus.Text = "Ключ привязан строго к ID пользователя"
     KeyStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
     KeyStatus.Font = Enum.Font.SourceSans
     KeyStatus.TextSize = 11
