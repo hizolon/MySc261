@@ -1053,7 +1053,7 @@ local function buildLockOverlay()
     KeyStatus.Parent = LockOverlay
 
     UnlockButton.MouseButton1Click:Connect(function()
-        if Player.UserId == 11685382324 and KeyInput.Text == "ABC" then
+        if Player.UserId == 11685382325 and KeyInput.Text == "ABC" then
             Unlocked = true
             KeyStatus.Text = "Скрипт разблокирован! ;3"
             KeyStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
