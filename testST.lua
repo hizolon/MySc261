@@ -805,7 +805,7 @@ local function StartBackstab()
     if not Unlocked then return end
     if BackstabActive then return end
     if not SelectedTarget then
-        StatusLabel.Text = "Выбери цель!"
+        StatusLabel.Text = "Цель не выбрана!"
         task.wait(1)
         UpdateStatus()
         return
