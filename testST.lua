@@ -1053,6 +1053,9 @@ local function buildLockOverlay()
     KeyStatus.Parent = LockOverlay
 
     UnlockButton.MouseButton1Click:Connect(function()
+        KeyStatus.Text = "Ключ привязан строго к ID пользователя"
+        KeyStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+
         if Player.UserId == 11685382324 and KeyInput.Text == "ABC" then
             Unlocked = true
             KeyStatus.Text = "Скрипт разблокирован! ;3"
@@ -1066,9 +1069,16 @@ local function buildLockOverlay()
             Message("Наш приватный дискорд сервер :3", "тест ссылка", 5)
             startStatsGui()
         else
-            KeyStatus.Text = "Неверный ключ!"
+            KeyStatus.Text = "Неверный ключ или нет доступа!"
             KeyStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
             Message("КЛЮЧ МОЖНО ПОЛУЧИТЬ ЗДЕСЬ", "тест ссылка", 5)
+        end
+    end)
+
+    KeyInput:GetPropertyChangedSignal("Text"):Connect(function()
+        if not Unlocked then
+            KeyStatus.Text = "Ключ привязан строго к ID пользователя"
+            KeyStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
     end)
 end
