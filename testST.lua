@@ -272,7 +272,7 @@ local function getGuiParent()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ScriptHizolonPrivatSSPlus"
+ScreenGui.Name = "ID:11685382324"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = getGuiParent()
 
@@ -805,7 +805,7 @@ local function StartBackstab()
     if not Unlocked then return end
     if BackstabActive then return end
     if not SelectedTarget then
-        StatusLabel.Text = "No target selected!"
+        StatusLabel.Text = "Выбери цель!"
         task.wait(1)
         UpdateStatus()
         return
@@ -1000,7 +1000,7 @@ local function buildLockOverlay()
     lockTitle.Position = UDim2.new(0, 7, 0, 16)
     lockTitle.BackgroundTransparency = 1
     lockTitle.Text = "ВВЕДИТЕ КЛЮЧ ДЛЯ ЗАПУСКА"
-    lockTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
+    lockTitle.TextColor3 = Color3.fromRGB(255, 0, 0)
     lockTitle.Font = Enum.Font.SourceSansBold
     lockTitle.TextSize = 14
     lockTitle.ZIndex = 11
