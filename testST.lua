@@ -272,7 +272,7 @@ local function getGuiParent()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ID:11685382324"
+ScreenGui.Name = "ID:11915758727"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = getGuiParent()
 
@@ -303,7 +303,7 @@ TitleBarCorner.Parent = TitleBar
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -26, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ID:11685382324 | by: Flarnux | Gm: TSB"
+Title.Text = "ID:11915758727 | by: Flarnux | Gm: TSB"
 Title.TextColor3 = Color3.fromRGB(255, 0, 0)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -442,8 +442,6 @@ local PositionConnection = nil
 local HealthConnection = nil
 local DeathConnection = nil
 local SafePlatform = nil
-local SafeReturn = nil
-local SafeMode = nil
 local PreviousAutoRotate = nil
 local CharacterConnection = nil
 local CleanupConnections = {}
@@ -462,6 +460,13 @@ local UnlockButton = nil
 local StatsGuiRunning = false
 local StatsScreenGui = nil
 
+local SafePlatformY = -1000
+local SafePlatformSize = Vector3.new(1000, 2, 1000)
+local SafePos = Vector3.new(0, SafePlatformY + 5, 0)
+local SafeActive = false
+local SafeConnections = {}
+local SafeSavedCFrame = nil
+
 local function getPing()
     local ok, ping = pcall(function()
         return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
@@ -478,46 +483,89 @@ local function getHRP(plr)
     return plr.Character:FindFirstChild("HumanoidRootPart")
 end
 
-local function removeSafeZone(restorePosition)
-    if restorePosition and SafeReturn then
-        local hrp = getHRP(Player)
-        if hrp then
-            hrp.CFrame = SafeReturn
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
+local function enableSafeZone()
+    if SafeActive then return end
+    SafeActive = true
+
+    local char = Player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        SafeSavedCFrame = char.HumanoidRootPart.CFrame
     end
-    if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
-    SafeReturn = nil
-    SafeMode = nil
+
+    if SafePlatform then SafePlatform:Destroy() end
+    SafePlatform = Instance.new("Part")
+    SafePlatform.Name = "AntiFallPlatform"
+    SafePlatform.Size = SafePlatformSize
+    SafePlatform.Position = Vector3.new(0, SafePlatformY, 0)
+    SafePlatform.Anchored = true
+    SafePlatform.CanCollide = true
+    SafePlatform.Transparency = 0.5
+    SafePlatform.Material = Enum.Material.SmoothPlastic
+    SafePlatform.Color = Color3.fromRGB(0, 255, 255)
+    SafePlatform.Parent = workspace
+
+    local c1 = RunService.Heartbeat:Connect(function()
+        workspace.FallenPartsDestroyHeight = -math.huge
+    end)
+    table.insert(SafeConnections, c1)
+
+    local function hookChar(c)
+        local hum = c:WaitForChild("Humanoid")
+        local c2 = hum.HealthChanged:Connect(function(h)
+            if h <= 0 and SafeActive then
+                hum.Health = hum.MaxHealth
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
+        table.insert(SafeConnections, c2)
+    end
+    if Player.Character then hookChar(Player.Character) end
+    local c3 = Player.CharacterAdded:Connect(hookChar)
+    table.insert(SafeConnections, c3)
+
+    task.spawn(function()
+        task.wait(0.1)
+        local c = Player.Character
+        if c and c:FindFirstChild("HumanoidRootPart") then
+            c.HumanoidRootPart.CFrame = CFrame.new(SafePos)
+        end
+    end)
+
+    local c4 = RunService.Heartbeat:Connect(function()
+        local c = Player.Character
+        if c and c:FindFirstChild("HumanoidRootPart") then
+            local hrp = c.HumanoidRootPart
+            if hrp.Position.Y < SafePlatformY - 10 then
+                hrp.CFrame = CFrame.new(SafePos)
+            end
+        end
+    end)
+    table.insert(SafeConnections, c4)
 end
 
-local function createSafeZone(mode)
-    local hrp = getHRP(Player)
-    if not hrp then return false end
-    if SafePlatform then SafePlatform:Destroy(); SafePlatform = nil end
-    SafeReturn = SafeReturn or hrp.CFrame
-    SafeMode = mode or "above"
-    local y = SafeMode == "below" and -CONFIG.SAFE_DEPTH or CONFIG.SAFE_HEIGHT
-    local destination = Vector3.new(hrp.Position.X, y, hrp.Position.Z)
-    local platform = Instance.new("Part")
-    platform.Name = "HizolonLocalSafeZone"
-    platform.Size = Vector3.new(28, 2, 28)
-    platform.Anchored = true
-    platform.CanCollide = true
-    platform.CanTouch = false
-    platform.CanQuery = false
-    platform.CastShadow = false
-    platform.Material = Enum.Material.SmoothPlastic
-    platform.Color = Color3.fromRGB(0, 0, 0)
-    platform.Transparency = SafeMode == "below" and 1 or 0.65
-    platform.CFrame = CFrame.new(destination)
-    platform.Parent = workspace
-    SafePlatform = platform
-    hrp.CFrame = CFrame.new(destination + Vector3.new(0, 5, 0))
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
-    return true
+local function disableSafeZone()
+    if not SafeActive then return end
+    SafeActive = false
+
+    if SafePlatform then SafePlatform:Destroy() end
+    SafePlatform = nil
+
+    for _, c in ipairs(SafeConnections) do
+        if c then c:Disconnect() end
+    end
+    SafeConnections = {}
+
+    workspace.FallenPartsDestroyHeight = -50
+
+    local char = Player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        if SafeSavedCFrame then
+            char.HumanoidRootPart.CFrame = SafeSavedCFrame
+        else
+            char.HumanoidRootPart.CFrame = CFrame.new(0, 10, 0)
+        end
+    end
+    SafeSavedCFrame = nil
 end
 
 local function emergencyRetreat()
@@ -819,7 +867,7 @@ local function StartBackstab()
     UpdateStatus()
     Message("Prototype by Flarnux V43.2", "Backstabbing " .. SelectedTarget.Name, 2)
     if CONFIG.SAFE_ZONE then
-        removeSafeZone(false)
+        disableSafeZone()
         CONFIG.SAFE_ZONE = false
         paintToggle(SafeToggle, "SAVE ZONA", false)
     end
@@ -1056,7 +1104,7 @@ local function buildLockOverlay()
         KeyStatus.Text = "Ключ привязан строго к ID пользователя"
         KeyStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
 
-        if Player.UserId == 11685382324 and KeyInput.Text == "ABC" then
+        if Player.UserId == 11915758727 and KeyInput.Text == "ABC" then
             Unlocked = true
             KeyStatus.Text = "Скрипт разблокирован! ;3"
             KeyStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -1091,9 +1139,9 @@ SafeToggle.MouseButton1Click:Connect(function()
     CONFIG.SAFE_ZONE = not CONFIG.SAFE_ZONE
     if CONFIG.SAFE_ZONE then
         if BackstabActive then StopBackstab() end
-        createSafeZone("above")
+        enableSafeZone()
     else
-        removeSafeZone(true)
+        disableSafeZone()
     end
     paintToggle(SafeToggle, "SAVE ZONA", CONFIG.SAFE_ZONE)
 end)
@@ -1158,7 +1206,18 @@ end))
 
 CharacterConnection = Player.CharacterAdded:Connect(function(character)
     PreviousAutoRotate = nil
-    if SafePlatform then removeSafeZone(false) end
+    if SafeActive then
+        local hum = character:WaitForChild("Humanoid", 5)
+        if hum then
+            local c2 = hum.HealthChanged:Connect(function(h)
+                if h <= 0 and SafeActive then
+                    hum.Health = hum.MaxHealth
+                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                end
+            end)
+            table.insert(SafeConnections, c2)
+        end
+    end
     if Unlocked then
         monitorHealth(character)
         if BackstabActive then
