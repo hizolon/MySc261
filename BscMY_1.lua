@@ -1,13 +1,21 @@
--- лучший пока что в ключ системе и save zona 02.1.26
+-- стиль из "окно с расширением" + логика из "лучший пока что" + stats правее + сворачивание на C
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local StarterGui = game:GetService("StarterGui")
 local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local MaterialService = game:GetService("MaterialService")
 local Player = Players.LocalPlayer
+
+-- ===== флаги ДО вкладок =====
+local Unlocked = false
+local LockOverlay = nil
+local KeyInput = nil
+local KeyStatus = nil
+local UnlockButton = nil
 
 local CONFIG = {
     BEHIND_STUDS = 3,
@@ -25,20 +33,14 @@ local CONFIG = {
     SAFE_ZONE = false,
 }
 
-if not _G.Ignore then
-    _G.Ignore = {}
-end
+if not _G.Ignore then _G.Ignore = {} end
 _G.SendNotifications = false
 _G.ConsoleLogs = false
 _G.LoadedWait = 1
 
 if not _G.Settings then
     _G.Settings = {
-        Players = {
-            ["Ignore Me"] = true,
-            ["Ignore Others"] = true,
-            ["Ignore Tools"] = true,
-        },
+        Players = { ["Ignore Me"] = true, ["Ignore Others"] = true, ["Ignore Tools"] = true },
         Meshes = { NoMesh = false, NoTexture = false, Destroy = false },
         Images = { Invisible = true, Destroy = false },
         Explosions = { Smaller = true, Invisible = false, Destroy = false },
@@ -46,16 +48,10 @@ if not _G.Settings then
         TextLabels = { LowerQuality = false, Invisible = false, Destroy = false },
         MeshParts = { LowerQuality = true, Invisible = false, NoTexture = false, NoMesh = false, Destroy = false },
         Other = {
-            ["FPS Cap"] = true,
-            ["No Camera Effects"] = true,
-            ["No Clothes"] = true,
-            ["Low Water Graphics"] = true,
-            ["No Shadows"] = true,
-            ["Low Rendering"] = true,
-            ["Low Quality Parts"] = true,
-            ["Low Quality Models"] = true,
-            ["Reset Materials"] = true,
-            ["Lower Quality MeshParts"] = true,
+            ["FPS Cap"] = true, ["No Camera Effects"] = true, ["No Clothes"] = true,
+            ["Low Water Graphics"] = true, ["No Shadows"] = true, ["Low Rendering"] = true,
+            ["Low Quality Parts"] = true, ["Low Quality Models"] = true,
+            ["Reset Materials"] = true, ["Lower Quality MeshParts"] = true,
             ClearNilInstances = false,
         },
     }
@@ -66,29 +62,26 @@ local CanBeEnabled = { "ParticleEmitter", "Trail", "Smoke", "Fire", "Sparkles" }
 
 local function PartOfCharacter(Inst)
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= ME and v.Character and Inst:IsDescendantOf(v.Character) then
-            return true
-        end
+        if v ~= ME and v.Character and Inst:IsDescendantOf(v.Character) then return true end
     end
     return false
 end
 
 local function DescendantOfIgnore(Inst)
     for _, v in pairs(_G.Ignore) do
-        if typeof(v) == "Instance" and Inst:IsDescendantOf(v) then
-            return true
-        end
+        if typeof(v) == "Instance" and Inst:IsDescendantOf(v) then return true end
     end
     return false
 end
 
 local function CheckIfBad(Inst)
     if not Inst or not Inst.Parent then return end
-    if not Inst:IsDescendantOf(Players) and (_G.Settings.Players["Ignore Others"] and not PartOfCharacter(Inst)
-    or not _G.Settings.Players["Ignore Others"]) and (_G.Settings.Players["Ignore Me"] and ME.Character and not Inst:IsDescendantOf(ME.Character)
-    or not _G.Settings.Players["Ignore Me"]) and (_G.Settings.Players["Ignore Tools"] and not Inst:IsA("BackpackItem") and not Inst:FindFirstAncestorWhichIsA("BackpackItem")
-    or not _G.Settings.Players["Ignore Tools"]) and (_G.Ignore and not table.find(_G.Ignore, Inst) and not DescendantOfIgnore(Inst)
-    or (not _G.Ignore or type(_G.Ignore) ~= "table" or #_G.Ignore <= 0)) then
+    if not Inst:IsDescendantOf(Players)
+        and (_G.Settings.Players["Ignore Others"] and not PartOfCharacter(Inst) or not _G.Settings.Players["Ignore Others"])
+        and (_G.Settings.Players["Ignore Me"] and ME.Character and not Inst:IsDescendantOf(ME.Character) or not _G.Settings.Players["Ignore Me"])
+        and (_G.Settings.Players["Ignore Tools"] and not Inst:IsA("BackpackItem") and not Inst:FindFirstAncestorWhichIsA("BackpackItem") or not _G.Settings.Players["Ignore Tools"])
+        and (_G.Ignore and not table.find(_G.Ignore, Inst) and not DescendantOfIgnore(Inst)
+            or (not _G.Ignore or type(_G.Ignore) ~= "table" or #_G.Ignore <= 0)) then
         if Inst:IsA("DataModelMesh") then
             if Inst:IsA("SpecialMesh") then
                 if _G.Settings.Meshes.NoMesh then Inst.MeshId = "" end
@@ -96,10 +89,7 @@ local function CheckIfBad(Inst)
             end
             if _G.Settings.Meshes.Destroy or _G.Settings["No Meshes"] then Inst:Destroy() end
         elseif Inst:IsA("FaceInstance") then
-            if _G.Settings.Images.Invisible then
-                Inst.Transparency = 1
-                Inst.Shiny = 1
-            end
+            if _G.Settings.Images.Invisible then Inst.Transparency = 1; Inst.Shiny = 1 end
             if _G.Settings.Images.LowDetail then Inst.Shiny = 1 end
             if _G.Settings.Images.Destroy then Inst:Destroy() end
         elseif Inst:IsA("ShirtGraphic") then
@@ -116,32 +106,23 @@ local function CheckIfBad(Inst)
             Inst.Enabled = false
         elseif Inst:IsA("Explosion") then
             if _G.Settings["Smaller Explosions"] or (_G.Settings.Other and _G.Settings.Other["Smaller Explosions"]) or (_G.Settings.Explosions and _G.Settings.Explosions.Smaller) then
-                Inst.BlastPressure = 1
-                Inst.BlastRadius = 1
+                Inst.BlastPressure = 1; Inst.BlastRadius = 1
             end
             if _G.Settings["Invisible Explosions"] or (_G.Settings.Other and _G.Settings.Other["Invisible Explosions"]) or (_G.Settings.Explosions and _G.Settings.Explosions.Invisible) then
-                Inst.BlastPressure = 1
-                Inst.BlastRadius = 1
-                Inst.Visible = false
+                Inst.BlastPressure = 1; Inst.BlastRadius = 1; Inst.Visible = false
             end
             if _G.Settings["No Explosions"] or (_G.Settings.Other and _G.Settings.Other["No Explosions"]) or (_G.Settings.Explosions and _G.Settings.Explosions.Destroy) then
                 Inst:Destroy()
             end
         elseif Inst:IsA("Clothing") or Inst:IsA("SurfaceAppearance") or Inst:IsA("BaseWrap") then
-            if _G.Settings["No Clothes"] or (_G.Settings.Other and _G.Settings.Other["No Clothes"]) then
-                Inst:Destroy()
-            end
+            if _G.Settings["No Clothes"] or (_G.Settings.Other and _G.Settings.Other["No Clothes"]) then Inst:Destroy() end
         elseif Inst:IsA("BasePart") and not Inst:IsA("MeshPart") then
             if _G.Settings["Low Quality Parts"] or (_G.Settings.Other and _G.Settings.Other["Low Quality Parts"]) then
-                Inst.Material = Enum.Material.Plastic
-                Inst.Reflectance = 0
+                Inst.Material = Enum.Material.Plastic; Inst.Reflectance = 0
             end
         elseif Inst:IsA("TextLabel") and Inst:IsDescendantOf(workspace) then
             if _G.Settings["Lower Quality TextLabels"] or (_G.Settings.Other and _G.Settings.Other["Lower Quality TextLabels"]) or (_G.Settings.TextLabels and _G.Settings.TextLabels.LowerQuality) then
-                Inst.Font = Enum.Font.SourceSans
-                Inst.TextScaled = false
-                Inst.RichText = false
-                Inst.TextSize = 14
+                Inst.Font = Enum.Font.SourceSans; Inst.TextScaled = false; Inst.RichText = false; Inst.TextSize = 14
             end
             if _G.Settings["Invisible TextLabels"] or (_G.Settings.Other and _G.Settings.Other["Invisible TextLabels"]) or (_G.Settings.TextLabels and _G.Settings.TextLabels.Invisible) then
                 Inst.Visible = false
@@ -150,20 +131,13 @@ local function CheckIfBad(Inst)
                 Inst:Destroy()
             end
         elseif Inst:IsA("Model") then
-            if _G.Settings["Low Quality Models"] or (_G.Settings.Other and _G.Settings.Other["Low Quality Models"]) then
-                Inst.LevelOfDetail = 1
-            end
+            if _G.Settings["Low Quality Models"] or (_G.Settings.Other and _G.Settings.Other["Low Quality Models"]) then Inst.LevelOfDetail = 1 end
         elseif Inst:IsA("MeshPart") then
             if _G.Settings["Low Quality MeshParts"] or (_G.Settings.Other and _G.Settings.Other["Low Quality MeshParts"]) or (_G.Settings.MeshParts and _G.Settings.MeshParts.LowerQuality) then
-                Inst.RenderFidelity = 2
-                Inst.Reflectance = 0
-                Inst.Material = Enum.Material.Plastic
+                Inst.RenderFidelity = 2; Inst.Reflectance = 0; Inst.Material = Enum.Material.Plastic
             end
             if _G.Settings["Invisible MeshParts"] or (_G.Settings.Other and _G.Settings.Other["Invisible MeshParts"]) or (_G.Settings.MeshParts and _G.Settings.MeshParts.Invisible) then
-                Inst.Transparency = 1
-                Inst.RenderFidelity = 2
-                Inst.Reflectance = 0
-                Inst.Material = Enum.Material.Plastic
+                Inst.Transparency = 1; Inst.RenderFidelity = 2; Inst.Reflectance = 0; Inst.Material = Enum.Material.Plastic
             end
             if _G.Settings.MeshParts and _G.Settings.MeshParts.NoTexture then Inst.TextureID = "" end
             if _G.Settings.MeshParts and _G.Settings.MeshParts.NoMesh then Inst.MeshId = "" end
@@ -181,24 +155,16 @@ local function applyLowWaterGraphics()
             repeat task.wait() until workspace:FindFirstChildOfClass("Terrain")
             terrain = workspace:FindFirstChildOfClass("Terrain")
         end
-        terrain.WaterWaveSize = 0
-        terrain.WaterWaveSpeed = 0
-        terrain.WaterReflectance = 0
-        terrain.WaterTransparency = 0
-        if sethiddenproperty then
-            sethiddenproperty(terrain, "Decoration", false)
-        end
+        terrain.WaterWaveSize = 0; terrain.WaterWaveSpeed = 0
+        terrain.WaterReflectance = 0; terrain.WaterTransparency = 0
+        if sethiddenproperty then sethiddenproperty(terrain, "Decoration", false) end
     end
 end
 
 local function applyNoShadows()
     if _G.Settings["No Shadows"] or (_G.Settings.Other and _G.Settings.Other["No Shadows"]) then
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        Lighting.ShadowSoftness = 0
-        if sethiddenproperty then
-            sethiddenproperty(Lighting, "Technology", 2)
-        end
+        Lighting.GlobalShadows = false; Lighting.FogEnd = 9e9; Lighting.ShadowSoftness = 0
+        if sethiddenproperty then sethiddenproperty(Lighting, "Technology", 2) end
     end
 end
 
@@ -220,11 +186,8 @@ local function applyFpsCap()
     if _G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"]) then
         if setfpscap then
             local v = _G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])
-            if type(v) == "string" or type(v) == "number" then
-                setfpscap(tonumber(v))
-            elseif v == true then
-                setfpscap(1e6)
-            end
+            if type(v) == "string" or type(v) == "number" then setfpscap(tonumber(v))
+            elseif v == true then setfpscap(1e6) end
         end
     end
 end
@@ -232,9 +195,7 @@ end
 local function applyClearNilInstances()
     if _G.Settings.Other["ClearNilInstances"] then
         if getnilinstances then
-            for _, v in pairs(getnilinstances()) do
-                pcall(v.Destroy, v)
-            end
+            for _, v in pairs(getnilinstances()) do pcall(v.Destroy, v) end
         end
     end
 end
@@ -251,13 +212,9 @@ local function startFpsBoost()
     coroutine.wrap(pcall)(applyResetMaterials)
     coroutine.wrap(pcall)(applyFpsCap)
     coroutine.wrap(pcall)(applyClearNilInstances)
-    local Descendants = game:GetDescendants()
-    for _, v in pairs(Descendants) do
-        CheckIfBad(v)
-    end
+    for _, v in pairs(game:GetDescendants()) do CheckIfBad(v) end
     FpsAddedConnection = game.DescendantAdded:Connect(function(value)
-        wait(_G.LoadedWait or 1)
-        CheckIfBad(value)
+        wait(_G.LoadedWait or 1); CheckIfBad(value)
     end)
 end
 
@@ -273,14 +230,17 @@ local function getGuiParent()
     return Player:WaitForChild("PlayerGui")
 end
 
+-- =========================================================
+--  ОКНО
+-- =========================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ID:11915758727"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = getGuiParent()
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 210, 0, 286)
-MainFrame.Position = UDim2.new(0.5, -105, 0.5, -143)
+MainFrame.Size = UDim2.new(0, 315, 0, 286)
+MainFrame.Position = UDim2.new(0.5, -157, 0.5, -143)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -296,6 +256,7 @@ local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 21)
 TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 5
 TitleBar.Parent = MainFrame
 
 local TitleBarCorner = Instance.new("UICorner")
@@ -311,6 +272,7 @@ Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Position = UDim2.new(0, 7, 0, 0)
+Title.ZIndex = 6
 Title.Parent = TitleBar
 
 local MinimizeButton = Instance.new("TextButton")
@@ -323,26 +285,143 @@ MinimizeButton.Text = "-"
 MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
 MinimizeButton.Font = Enum.Font.SourceSansBold
 MinimizeButton.TextSize = 15
+MinimizeButton.ZIndex = 6
 MinimizeButton.Parent = TitleBar
 
 local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 4)
 MinCorner.Parent = MinimizeButton
 
-local minimized = false
-MinimizeButton.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    MainFrame.Size = UDim2.fromOffset(210, minimized and 21 or 286)
-    MinimizeButton.Text = minimized and "+" or "-"
-    for _, child in ipairs(MainFrame:GetChildren()) do
-        if child:IsA("GuiObject") and child ~= TitleBar and child.Name ~= "LockOverlay" then
-            child.Visible = not minimized
-        end
-    end
-end)
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.fromOffset(105, 265)
+Sidebar.Position = UDim2.fromOffset(0, 21)
+Sidebar.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+Sidebar.BorderSizePixel = 0
+Sidebar.ZIndex = 3
+Sidebar.Parent = MainFrame
 
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.Padding = UDim.new(0, 4)
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Parent = Sidebar
+
+local SidebarPadding = Instance.new("UIPadding")
+SidebarPadding.PaddingTop = UDim.new(0, 6)
+SidebarPadding.PaddingLeft = UDim.new(0, 6)
+SidebarPadding.PaddingRight = UDim.new(0, 6)
+SidebarPadding.Parent = Sidebar
+
+local PagesHolder = Instance.new("Frame")
+PagesHolder.Name = "PagesHolder"
+PagesHolder.Size = UDim2.fromOffset(210, 265)
+PagesHolder.Position = UDim2.fromOffset(105, 21)
+PagesHolder.BackgroundTransparency = 1
+PagesHolder.BorderSizePixel = 0
+PagesHolder.ZIndex = 2
+PagesHolder.Parent = MainFrame
+
+local pages = {}
+local tabButtons = {}
+local currentPage = nil
+
+local function registerPage(name)
+    local page = Instance.new("Frame")
+    page.Name = name .. "Page"
+    page.Size = UDim2.fromOffset(210, 265)
+    page.Position = UDim2.fromOffset(0, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.Visible = false
+    page.ZIndex = 2
+    page.Parent = PagesHolder
+    pages[name] = page
+    return page
+end
+
+local function makeTab(name, order)
+    local btn = Instance.new("TextButton")
+    btn.Name = "Tab_" .. name
+    btn.Size = UDim2.new(1, 0, 0, 26)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.BorderSizePixel = 0
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 12
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.TextYAlignment = Enum.TextYAlignment.Center
+    btn.LayoutOrder = order
+    btn.ZIndex = 4
+    btn.AutoButtonColor = false
+    btn.Parent = Sidebar
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 4)
+    c.Parent = btn
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft = UDim.new(0, 8)
+    pad.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        for n, p in pairs(pages) do p.Visible = (n == name) end
+        for n, b in pairs(tabButtons) do
+            b.BackgroundColor3 = (n == name) and Color3.fromRGB(80, 0, 0) or Color3.fromRGB(45, 45, 45)
+        end
+        currentPage = name
+    end)
+
+    tabButtons[name] = btn
+    return btn
+end
+
+local function showPage(name)
+    for n, p in pairs(pages) do p.Visible = (n == name) end
+    for n, b in pairs(tabButtons) do
+        b.BackgroundColor3 = (n == name) and Color3.fromRGB(80, 0, 0) or Color3.fromRGB(45, 45, 45)
+    end
+    currentPage = name
+end
+
+local HomePage = registerPage("Home")
+local Null1Page = registerPage("null1")
+local Null2Page = registerPage("null2")
+local Null3Page = registerPage("null3")
+local Null4Page = registerPage("null4")
+local Null5Page = registerPage("null5")
+
+makeTab("Home", 1)
+makeTab("null1", 2)
+makeTab("null2", 3)
+makeTab("null3", 4)
+makeTab("null4", 5)
+makeTab("null5", 6)
+
+local function makeNullPlaceholder(page, title)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -14, 0, 24)
+    lbl.Position = UDim2.new(0, 7, 0, 7)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = title .. " — empty"
+    lbl.TextColor3 = Color3.fromRGB(120, 120, 120)
+    lbl.Font = Enum.Font.SourceSans
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = page
+end
+
+makeNullPlaceholder(Null1Page, "null1")
+makeNullPlaceholder(Null2Page, "null2")
+makeNullPlaceholder(Null3Page, "null3")
+makeNullPlaceholder(Null4Page, "null4")
+makeNullPlaceholder(Null5Page, "null5")
+
+-- =========================================================
+--  HOME
+-- =========================================================
 local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Position = UDim2.new(0, 7, 0, 28)
+StatusLabel.Position = UDim2.new(0, 7, 0, 7)
 StatusLabel.Size = UDim2.new(1, -14, 0, 18)
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.Text = "Select target to backstab"
@@ -350,14 +429,14 @@ StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.Parent = MainFrame
+StatusLabel.Parent = HomePage
 
 local SelectionFrame = Instance.new("Frame")
-SelectionFrame.Position = UDim2.new(0, 7, 0, 49)
+SelectionFrame.Position = UDim2.new(0, 7, 0, 28)
 SelectionFrame.Size = UDim2.new(1, -14, 0, 140)
 SelectionFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 SelectionFrame.BorderSizePixel = 0
-SelectionFrame.Parent = MainFrame
+SelectionFrame.Parent = HomePage
 
 local SelectionCorner = Instance.new("UICorner")
 SelectionCorner.CornerRadius = UDim.new(0, 4)
@@ -374,7 +453,7 @@ PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 PlayerScrollFrame.Parent = SelectionFrame
 
 local StartButton = Instance.new("TextButton")
-StartButton.Position = UDim2.new(0, 7, 0, 196)
+StartButton.Position = UDim2.new(0, 7, 0, 175)
 StartButton.Size = UDim2.new(0.5, -10, 0, 28)
 StartButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
 StartButton.BorderSizePixel = 0
@@ -382,14 +461,14 @@ StartButton.Text = "START"
 StartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 StartButton.Font = Enum.Font.SourceSansBold
 StartButton.TextSize = 12
-StartButton.Parent = MainFrame
+StartButton.Parent = HomePage
 
 local StartCorner = Instance.new("UICorner")
 StartCorner.CornerRadius = UDim.new(0, 4)
 StartCorner.Parent = StartButton
 
 local StopButton = Instance.new("TextButton")
-StopButton.Position = UDim2.new(0.5, 3, 0, 196)
+StopButton.Position = UDim2.new(0.5, 3, 0, 175)
 StopButton.Size = UDim2.new(0.5, -10, 0, 28)
 StopButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
 StopButton.BorderSizePixel = 0
@@ -397,35 +476,33 @@ StopButton.Text = "STOP"
 StopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 StopButton.Font = Enum.Font.SourceSansBold
 StopButton.TextSize = 12
-StopButton.Parent = MainFrame
+StopButton.Parent = HomePage
 
 local StopCorner = Instance.new("UICorner")
 StopCorner.CornerRadius = UDim.new(0, 4)
 StopCorner.Parent = StopButton
 
-local function makeToggle(name, x, width)
+local function makeToggle(parent, name, x, y, width)
     local button = Instance.new("TextButton")
     button.Name = name:gsub(" ", "")
-    button.Position = UDim2.new(0, x, 0, 231)
+    button.Position = UDim2.new(0, x, 0, y)
     button.Size = UDim2.new(0, width, 0, 21)
     button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     button.BorderSizePixel = 0
     button.TextColor3 = Color3.fromRGB(255, 80, 80)
     button.Font = Enum.Font.SourceSansBold
     button.TextSize = 10
-    button.Parent = MainFrame
+    button.Parent = parent
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = button
     return button
 end
 
-local SafeToggle = makeToggle("SAVE ZONA", 7, 94)
-local ResetToggle = makeToggle("AUTO RESET", 108, 95)
-local FpsBoostToggle = makeToggle("FPS BOOST", 7, 94)
-FpsBoostToggle.Position = UDim2.new(0, 7, 0, 258)
-local EspToggle = makeToggle("ESP", 108, 95)
-EspToggle.Position = UDim2.new(0, 108, 0, 258)
+local SafeToggle = makeToggle(HomePage, "SAVE ZONA", 7, 210, 94)
+local ResetToggle = makeToggle(HomePage, "AUTO RESET", 108, 210, 95)
+local FpsBoostToggle = makeToggle(HomePage, "FPS BOOST", 7, 237, 94)
+local EspToggle = makeToggle(HomePage, "ESP", 108, 237, 95)
 
 local function paintToggle(button, title, enabled)
     button.Text = title .. (enabled and ": ON" or ": OFF")
@@ -437,6 +514,33 @@ paintToggle(ResetToggle, "AUTO RESET", CONFIG.AUTO_RESET)
 paintToggle(FpsBoostToggle, "FPS BOOST", CONFIG.FPS_BOOST)
 paintToggle(EspToggle, "ESP", CONFIG.ESP)
 
+-- ---------- Сворачивание (кнопка + клавиша C) ----------
+local minimized = false
+local function setMinimized(state)
+    minimized = state
+    MainFrame.Size = UDim2.fromOffset(315, minimized and 21 or 286)
+    MinimizeButton.Text = minimized and "+" or "-"
+    Sidebar.Visible = not minimized
+    PagesHolder.Visible = not minimized
+    for _, child in ipairs(MainFrame:GetChildren()) do
+        if child.Name == "LockOverlay" then child.Visible = not minimized end
+    end
+end
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    setMinimized(not minimized)
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.C then
+        setMinimized(not minimized)
+    end
+end)
+
+-- =========================================================
+--  ЛОГИКА
+-- =========================================================
 local SelectedTarget = nil
 local PlayerButtons = {}
 local BackstabActive = false
@@ -453,12 +557,6 @@ local EspGui = nil
 local EspConnection = nil
 local EspEntries = {}
 
-local Unlocked = false
-local LockOverlay = nil
-local KeyInput = nil
-local KeyStatus = nil
-local UnlockButton = nil
-
 local StatsGuiRunning = false
 local StatsScreenGui = nil
 
@@ -470,9 +568,7 @@ local SafeConnections = {}
 local SafeSavedCFrame = nil
 
 local function getPing()
-    local ok, ping = pcall(function()
-        return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-    end)
+    local ok, ping = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
     return ok and ping or 50
 end
 local function isAlive(plr)
@@ -488,12 +584,10 @@ end
 local function enableSafeZone()
     if SafeActive then return end
     SafeActive = true
-
     local char = Player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         SafeSavedCFrame = char.HumanoidRootPart.CFrame
     end
-
     if SafePlatform then SafePlatform:Destroy() end
     SafePlatform = Instance.new("Part")
     SafePlatform.Name = "AntiFallPlatform"
@@ -506,24 +600,21 @@ local function enableSafeZone()
     SafePlatform.Color = Color3.fromRGB(0, 255, 255)
     SafePlatform.Parent = workspace
 
-    local c1 = RunService.Heartbeat:Connect(function()
+    table.insert(SafeConnections, RunService.Heartbeat:Connect(function()
         workspace.FallenPartsDestroyHeight = -math.huge
-    end)
-    table.insert(SafeConnections, c1)
+    end))
 
     local function hookChar(c)
         local hum = c:WaitForChild("Humanoid")
-        local c2 = hum.HealthChanged:Connect(function(h)
+        table.insert(SafeConnections, hum.HealthChanged:Connect(function(h)
             if h <= 0 and SafeActive then
                 hum.Health = hum.MaxHealth
                 hum:ChangeState(Enum.HumanoidStateType.Running)
             end
-        end)
-        table.insert(SafeConnections, c2)
+        end))
     end
     if Player.Character then hookChar(Player.Character) end
-    local c3 = Player.CharacterAdded:Connect(hookChar)
-    table.insert(SafeConnections, c3)
+    table.insert(SafeConnections, Player.CharacterAdded:Connect(hookChar))
 
     task.spawn(function()
         task.wait(0.1)
@@ -533,39 +624,27 @@ local function enableSafeZone()
         end
     end)
 
-    local c4 = RunService.Heartbeat:Connect(function()
+    table.insert(SafeConnections, RunService.Heartbeat:Connect(function()
         local c = Player.Character
         if c and c:FindFirstChild("HumanoidRootPart") then
             local hrp = c.HumanoidRootPart
-            if hrp.Position.Y < SafePlatformY - 10 then
-                hrp.CFrame = CFrame.new(SafePos)
-            end
+            if hrp.Position.Y < SafePlatformY - 10 then hrp.CFrame = CFrame.new(SafePos) end
         end
-    end)
-    table.insert(SafeConnections, c4)
+    end))
 end
 
 local function disableSafeZone()
     if not SafeActive then return end
     SafeActive = false
-
     if SafePlatform then SafePlatform:Destroy() end
     SafePlatform = nil
-
-    for _, c in ipairs(SafeConnections) do
-        if c then c:Disconnect() end
-    end
+    for _, c in ipairs(SafeConnections) do if c then c:Disconnect() end end
     SafeConnections = {}
-
     workspace.FallenPartsDestroyHeight = -50
-
     local char = Player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
-        if SafeSavedCFrame then
-            char.HumanoidRootPart.CFrame = SafeSavedCFrame
-        else
-            char.HumanoidRootPart.CFrame = CFrame.new(0, 10, 0)
-        end
+        if SafeSavedCFrame then char.HumanoidRootPart.CFrame = SafeSavedCFrame
+        else char.HumanoidRootPart.CFrame = CFrame.new(0, 10, 0) end
     end
     SafeSavedCFrame = nil
 end
@@ -578,9 +657,7 @@ local function emergencyRetreat()
     if not hum or not hrp or hum.Health <= 0 then return end
     ResetInProgress = true
     local y = -CONFIG.SAFE_DEPTH
-    pcall(function()
-        y = math.min(y, workspace.FallenPartsDestroyHeight - 15)
-    end)
+    pcall(function() y = math.min(y, workspace.FallenPartsDestroyHeight - 15) end)
     hrp.CFrame = CFrame.new(hrp.Position.X, y, hrp.Position.Z)
     hrp.AssemblyLinearVelocity = Vector3.zero
     hrp.AssemblyAngularVelocity = Vector3.zero
@@ -641,6 +718,7 @@ function Positioner.getBehindCFrame(targetHRP)
     if (facePos - behindPos).Magnitude < 0.01 then return CFrame.new(behindPos) end
     return CFrame.lookAt(behindPos, facePos)
 end
+
 function Positioner.teleport()
     if ResetInProgress or not SelectedTarget or not isAlive(SelectedTarget) then return end
     local targetHRP = getHRP(SelectedTarget)
@@ -658,7 +736,7 @@ end
 
 function UpdateStatus()
     if BackstabActive and SelectedTarget then
-        StatusLabel.Text = "Backstabbing: " .. SelectedTarget.Name
+        StatusLabel.Text = "Сейчас пиздишь: " .. SelectedTarget.Name
         StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     elseif SelectedTarget then
         StatusLabel.Text = "Пизда этому: " .. SelectedTarget.Name
@@ -890,11 +968,14 @@ local function StopBackstab()
     Message("Prototype by Flarnux V43.2", "Backstab stopped", 2)
 end
 
+-- =========================================================
+--  STATS В СТРОКУ, СМЕЩЕНО ПРАВЕЕ (3/4)
+-- =========================================================
 local function startStatsGui()
     if StatsGuiRunning then return end
     StatsGuiRunning = true
 
-    local W, H, SP, X, Y = 64, 24, 4, 10, 10
+    local W, H, SP, Y = 64, 24, 6, 10
     local guiParent = Player:WaitForChild("PlayerGui", 10)
     if not guiParent then return end
 
@@ -908,15 +989,35 @@ local function startStatsGui()
     StatsScreenGui.DisplayOrder = 999
     StatsScreenGui.Parent = guiParent
 
+    local COUNT = 5
+    local totalW = COUNT * W + (COUNT - 1) * SP
+
+    local container = Instance.new("Frame")
+    container.Name = "StatsRow"
+    container.Size = UDim2.fromOffset(totalW, H)
+    -- 0.75 по X = 3/4 экрана, ряд остаётся в одну строку и смещён правее
+    container.Position = UDim2.new(0.75, 0, 0, Y)
+    container.AnchorPoint = Vector2.new(0.5, 0)
+    container.BackgroundTransparency = 1
+    container.BorderSizePixel = 0
+    container.Parent = StatsScreenGui
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, SP)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.VerticalAlignment = Enum.VerticalAlignment.Center
+    layout.Parent = container
+
     local function makePlate(index)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.fromOffset(W, H)
-        frame.AnchorPoint = Vector2.new(1, 0)
-        frame.Position = UDim2.new(1, -X, 0, Y + (index - 1) * (H + SP))
         frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         frame.BackgroundTransparency = 0.5
         frame.BorderSizePixel = 0
-        frame.Parent = StatsScreenGui
+        frame.LayoutOrder = index
+        frame.Parent = container
 
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 6)
@@ -943,12 +1044,11 @@ local function startStatsGui()
 
     local creditFrame = Instance.new("Frame")
     creditFrame.Size = UDim2.fromOffset(W, H)
-    creditFrame.AnchorPoint = Vector2.new(1, 0)
-    creditFrame.Position = UDim2.new(1, -X, 0, Y + 4 * (H + SP))
     creditFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     creditFrame.BackgroundTransparency = 0.5
     creditFrame.BorderSizePixel = 0
-    creditFrame.Parent = StatsScreenGui
+    creditFrame.LayoutOrder = 5
+    creditFrame.Parent = container
 
     local creditCorner = Instance.new("UICorner")
     creditCorner.CornerRadius = UDim.new(0, 6)
@@ -1001,34 +1101,22 @@ local function startStatsGui()
             local ok, val = pcall(function()
                 return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
             end)
-            if ok and tonumber(val) then
-                ping = tonumber(val)
-            end
+            if ok and tonumber(val) then ping = tonumber(val) end
 
             local country
-            if ping < 40 then
-                country = "LOCAL"
-            elseif ping < 80 then
-                country = "EU"
-            elseif ping < 140 then
-                country = "US"
-            elseif ping < 220 then
-                country = "ASIA"
-            else
-                country = "FAR"
-            end
+            if ping < 40 then country = "LOCAL"
+            elseif ping < 80 then country = "EU"
+            elseif ping < 140 then country = "US"
+            elseif ping < 220 then country = "ASIA"
+            else country = "FAR" end
             pingLabel.Text = string.format("%d ms (%s)", math.floor(ping + 0.5), country)
 
             fpsLabel.Text = string.format("%d FPS", fpsValue)
 
             local cur = #Players:GetPlayers()
             local max = 0
-            local okMax, mv = pcall(function()
-                return Players.MaxPlayers
-            end)
-            if okMax and type(mv) == "number" and mv > 0 then
-                max = mv
-            end
+            local okMax, mv = pcall(function() return Players.MaxPlayers end)
+            if okMax and type(mv) == "number" and mv > 0 then max = mv end
             playersLabel.Text = max > 0 and string.format("%d/%d plrs", cur, max) or string.format("%d plrs", cur)
         end
     end)
@@ -1114,6 +1202,7 @@ local function buildLockOverlay()
             UnlockButton.Visible = false
             task.wait(0.4)
             if LockOverlay then LockOverlay:Destroy(); LockOverlay = nil end
+            showPage("Home")
             RefreshPlayerList()
             UpdateStatus()
             Message("Наш приватный дискорд сервер :3", "тест ссылка", 5)
@@ -1164,22 +1253,14 @@ end)
 FpsBoostToggle.MouseButton1Click:Connect(function()
     if not Unlocked then return end
     CONFIG.FPS_BOOST = not CONFIG.FPS_BOOST
-    if CONFIG.FPS_BOOST then
-        startFpsBoost()
-    else
-        stopFpsBoost()
-    end
+    if CONFIG.FPS_BOOST then startFpsBoost() else stopFpsBoost() end
     paintToggle(FpsBoostToggle, "FPS BOOST", CONFIG.FPS_BOOST)
 end)
 
 EspToggle.MouseButton1Click:Connect(function()
     if not Unlocked then return end
     CONFIG.ESP = not CONFIG.ESP
-    if CONFIG.ESP then
-        startEsp()
-    else
-        stopEsp()
-    end
+    if CONFIG.ESP then startEsp() else stopEsp() end
     paintToggle(EspToggle, "ESP", CONFIG.ESP)
 end)
 
@@ -1211,13 +1292,12 @@ CharacterConnection = Player.CharacterAdded:Connect(function(character)
     if SafeActive then
         local hum = character:WaitForChild("Humanoid", 5)
         if hum then
-            local c2 = hum.HealthChanged:Connect(function(h)
+            table.insert(SafeConnections, hum.HealthChanged:Connect(function(h)
                 if h <= 0 and SafeActive then
                     hum.Health = hum.MaxHealth
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                 end
-            end)
-            table.insert(SafeConnections, c2)
+            end))
         end
     end
     if Unlocked then
@@ -1233,4 +1313,10 @@ if Player.Character then task.defer(function()
     if Unlocked then monitorHealth(Player.Character) end
 end) end
 
+-- =========================================================
+--  Сборка
+-- =========================================================
 buildLockOverlay()
+
+-- Открываем Home по умолчанию (до разблокировки оверлей всё равно перекрывает)
+showPage("Home")
